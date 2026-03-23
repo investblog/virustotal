@@ -10,6 +10,7 @@ import { normalizeDomainInput, extractDomain } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
 import type { DomainRecord, DomainStatus, CheckInterval } from '@shared/types';
+import { openBulkAddDrawer } from './components/bulk-add-drawer';
 
 const $ = (s: string) => document.querySelector(s);
 
@@ -464,6 +465,9 @@ void (async function boot(): Promise<void> {
   addInput?.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') addBtn?.click();
   });
+
+  // Bulk add
+  document.getElementById('btnBulkAdd')?.addEventListener('click', openBulkAddDrawer);
 
   // Relative time auto-refresh (every 60s)
   setInterval(() => {
