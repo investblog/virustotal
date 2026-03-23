@@ -1,105 +1,175 @@
 # VirusTotal Domain Monitor
 
-## Overview
-WXT + TypeScript browser extension (Chrome, Firefox, Edge). Monitors domain reputation via VirusTotal API — watchlist with scheduled background checks + badge indicator for the active tab's domain. Developer tool for webmasters, not a consumer antivirus.
+## Current State
+- WXT project scaffold is in place: `wxt.config.ts`, `package.json` (with dev/build/zip scripts), `tsconfig.json`, `eslint.config.mjs`.
+- Dependencies installed (`node_modules/`), git initialized.
+- No `src/` directory yet — no entrypoints, shared modules, CSS, or icons.
+- Product spec is in `SPEC.md` (draft, under review).
+- Implementation has not started. When it does, create `src/` from scratch following the planned structure below.
 
-## Tech Stack
-- **Framework**: WXT ^0.19
-- **Language**: TypeScript ^5.7, strict, no `any`
-- **Linting**: ESLint ^9 + typescript-eslint
-- **UI**: Vanilla DOM (no React/Vue)
-- **Storage**: `chrome.storage.local` (domain records), `chrome.storage.sync` (settings)
-- **Build**: `npm run build` (Chrome/Edge), `npm run build:firefox`
-- **Dev**: `npm run dev` / `npm run dev:firefox` / `npm run dev:edge`
+## Product Positioning
+- Browser extension for webmasters to monitor domain reputation via VirusTotal API.
+- Target browsers for v1: Chrome, Firefox, Edge.
+- Chrome Web Store category: Developer Tools.
+- This is not an antivirus, blocker, navigation warning system, or mass-market security product.
 
-## Project Structure
-```
+## Source Of Truth
+- `SPEC.md` is the main product spec and discussion log.
+- `AGENTS.md` is the working contract for coding agents: repo reality, implementation defaults, and decision rules.
+- `CLAUDE.md` is the concise technical reference auto-loaded into every conversation context.
+- `W:\Projects\fastweb` is the primary architecture/style reference for WXT structure, messaging, CSS tokens, and sidebar handling.
+- If `SPEC.md` and the actual repo state differ, do not paper over the mismatch. Call it out and update docs before coding around it.
+
+## How To Work In This Repo
+- Treat the project as spec-first until real code exists.
+- Prefer clarifying product and architecture decisions before generating large amounts of code.
+- Separate accepted decisions from open questions.
+- When a product decision is finalized, update `SPEC.md`.
+- Update `AGENTS.md` only when the decision changes implementation rules, defaults, or agent workflow.
+- When the spec contains contradictory guidance, do not silently pick a side. Raise it during discussion or record the chosen resolution explicitly.
+
+## Stack
+- WXT `^0.19`
+- TypeScript `^5.7` with `strict: true`
+- ESLint `^9` + `typescript-eslint`
+- Vanilla DOM UI only
+- No `any`
+- No runtime dependencies unless clearly justified
+- Use `browser.*` APIs via WXT polyfills
+- Path aliases:
+  - `@shared/` -> `src/shared/`
+  - `@/` -> `src/`
+
+## Planned Project Structure
+Target structure after implementation starts:
+
+```text
 src/
   entrypoints/
-    background.ts               # Service worker: VT API queue, alarms, badge
-    welcome/                    # Onboarding wizard (3 steps)
+    background.ts
+    welcome/
       index.html
       main.ts
-    popup/                      # Minimal: current domain status + open panel
-      index.html
-      main.ts
-    sidepanel/                  # Main UI: Watchlist / Current Site / Settings
+    sidepanel/
       index.html
       main.ts
   shared/
-    types/index.ts              # TypeScript types (DomainRecord, Settings, etc.)
-    constants.ts                # Defaults, badge colors, status mappings
-    vt-client.ts                # VirusTotal API v3 client (single endpoint)
-    queue.ts                    # Throttled request queue (4 req/min, 15s gap)
-    db.ts                       # chrome.storage helpers (CRUD for domains + settings)
-    badge.ts                    # Badge color/text by domain status
-    alarm.ts                    # chrome.alarms helpers
-    theme.ts                    # Dark/light/auto theme (CSS vars + data-theme)
+    types/index.ts
+    constants.ts
+    vt-client.ts
+    queue.ts
+    db.ts
+    badge.ts
+    alarm.ts
+    theme.ts
     messaging/
-      index.ts                  # Re-export
-      protocol.ts               # Typed message protocol (RequestMessage, ResponseMap, sendMessage)
+      index.ts
+      protocol.ts
   assets/css/
-    theme.css                   # CSS custom properties for dark/light themes
-    components.css              # Shared UI components (buttons, inputs, toggles)
+    theme.css
+    components.css
   public/
-    icons/                      # PNG icons (16, 32, 48, 128)
+    icons/
 ```
 
-## Key Commands
-- `npm run dev` — dev build + load unpacked in Chrome
-- `npm run build` / `build:firefox` / `build:edge` — production build
-- `npm run zip:all` — build + zip all browsers
-- `npm run typecheck` — TypeScript check (`npx wxt prepare` first to generate types)
-- `npm run lint` — ESLint
-- `npm run check` — tsc + eslint combined
+By default, do not create a separate `popup/` entrypoint. Reuse `sidepanel/` in a compact popup mode for Firefox fallback if needed.
 
-## Storage
+## Storage Defaults
+- Use `browser.storage.local` for domain records.
+- Use `browser.storage.sync` for user settings.
+- Planned keys:
+  - `storage.local`
+    - `domains`: `Record<string, DomainRecord>`
+  - `storage.sync`
+    - `vt_api_key`
+    - `check_interval_hours`
+    - `theme`
+- Keep watchlist domain records in `local`, not `sync`, unless the user explicitly changes this product decision.
 
-**`chrome.storage.local`** — domain records (device-local, no size limit):
-- `domains` — `Record<string, DomainRecord>` keyed by domain string
+## VirusTotal Rules
+- v1 uses only `GET https://www.virustotal.com/api/v3/domains/{domain}`.
+- Authenticate with `x-apikey`.
+- Respect free-tier limits:
+  - 4 requests/minute
+  - 500 requests/day
+- Default throttle strategy: one request every 15 seconds.
+- Use `data.attributes.last_analysis_stats` as the basis for computed status.
+- Status priority should remain:
+  - `malicious`
+  - `suspicious`
+  - `clean`
+  - `unknown`
+  - `pending`
 
-**`chrome.storage.sync`** — user settings (synced across devices):
-- `vt_api_key` — string, VirusTotal public API key
-- `check_interval_hours` — number, default 24
-- `theme` — `'dark' | 'light' | 'auto'`
+## Architecture Defaults
+- The background service worker owns:
+  - VT request queue
+  - alarm scheduling
+  - badge updates
+  - typed message handling
+- UI contexts should react to storage changes instead of maintaining duplicated source-of-truth state where possible.
+- Typed messaging belongs in `src/shared/messaging/protocol.ts`.
+- Theme behavior belongs in shared utilities plus CSS custom properties.
+- MV3 service workers are ephemeral. An in-memory queue is acceptable as a transient worker buffer, but correctness must be reconstructible from storage plus alarms.
 
-## VT API
-```
-GET https://www.virustotal.com/api/v3/domains/{domain}
-Header: x-apikey: {key}
-Rate limit: 4 req/min, 500 req/day (free key)
-Response: data.attributes.last_analysis_stats → { malicious, suspicious, harmless, undetected }
-```
+## Browser-Specific Rules
+- Chrome/Edge:
+  - use `sidePanel`
+  - toolbar click should open the side panel
+  - no consumer-style default popup
+- Firefox:
+  - use the sidepanel UI as the primary surface
+  - if popup fallback is needed, reuse the same sidepanel UI in a compact mode instead of creating a separate popup product
+  - a mode flag such as `#sidebar`, `?popup=1`, or equivalent is acceptable to distinguish contexts
+- Keep permissions narrow:
+  - `storage`
+  - `alarms`
+  - `tabs`
+  - `activeTab`
+  - `sidePanel` only where supported
+- Keep host permissions limited to `https://www.virustotal.com/*`.
+- Do not add `webRequest`, `declarativeNetRequest`, or `<all_urls>`.
 
-## Badge Logic
-| Status | Color | Text |
-|--------|-------|------|
-| clean (mal=0, sus=0) | `#22c55e` green | `✓` |
-| suspicious (sus>0) | `#f59e0b` yellow | `!` |
-| malicious (mal>0) | `#ef4444` red | `✗` |
-| unknown / no key | `#6b7280` gray | `?` |
-| pending (queued) | `#3b82f6` blue | `…` |
+## Product Defaults For v1
+- Watchlist is the core feature.
+- Badge is a compact status indicator, not a fear-based warning UI.
+- Background checks are schedule-driven and watchlist-driven.
+- No blocking, interception, or navigation warnings.
+- No backend/proxy, notifications bot, history tracking, multiple API keys, URL scanning, or import/export in v1.
+- Reuse FastWeb patterns where they fit, but do not copy unrelated product behavior.
 
-Updated on `tabs.onActivated` + `tabs.onUpdated` — lookup active tab domain in storage.
+## Decisions Currently Favored
+Use these defaults unless the user explicitly changes the spec:
 
-## Conventions
-- Path aliases: `@shared/` → `src/shared/`, `@/` → `src/`
-- Entrypoint scripts: `main.ts` inside directories (WXT convention)
-- `browser.*` API everywhere — WXT polyfills
-- Typed messaging between background ↔ UI (`shared/messaging/protocol.ts`)
-- Theme via CSS custom properties + `data-theme` attribute (dark/light/auto)
-- No runtime dependencies — only devDependencies
-- No `webRequest` / `declarativeNetRequest` — read-only, CWS-friendly
+- Keep domain records in `storage.local`; keep settings in `storage.sync`.
+- Chrome/Edge should open the side panel from the extension icon.
+- Do not create a separate `popup/` entrypoint by default; Firefox fallback should reuse the sidepanel UI in compact mode.
+- Badge behavior in v1 should be watchlist-first, not full automatic scanning of every visited site.
+- UI copy can ship in English first, but implementation should avoid making future i18n painful.
 
-### Browser-specific (wxt.config.ts hooks)
-- **Chrome/Edge**: `sidePanel` permission, icon click → `sidePanel.open()`, no default_popup
-- **Firefox**: `sidebar_action`, sidepanel.html as popup fallback, `#sidebar` hash to distinguish modes
-- **Permissions**: `storage`, `alarms`, `tabs`, `activeTab`, `sidePanel` (Chrome/Edge only)
-- **Host permissions**: `https://www.virustotal.com/*`
+## Open Questions That Still Matter
+- Final public/store name and branding wording.
+- Whether `Current Site` in v1 should allow ad-hoc checks for domains outside the watchlist, or only encourage adding the domain first.
+- Whether v1 should be fully i18n-ready from day one or remain English-only internally until later.
 
-### Design references
-- **FastWeb** (`W:\Projects\fastweb`) — same stack, architecture, CSS system, messaging protocol
-- **CookiePeek** — vanilla DOM patterns, dark palette reference
+## Build Order
+1. Create shared types, constants, storage helpers, VT client, queue, alarm helpers, badge logic, theme helpers, and messaging protocol.
+2. Implement `background.ts`.
+3. Add shared CSS tokens/components.
+4. Implement the welcome flow.
+5. Implement the side panel.
+6. Add compact Firefox popup fallback behavior inside the sidepanel UI if needed.
+7. Add icons and store-facing metadata.
+8. Run typecheck, lint, and browser builds before polish work.
 
-## Spec
-Full product specification: [`SPEC.md`](SPEC.md)
+## Do Not Do
+- Do not present the extension as antivirus software.
+- Do not widen permissions without a product reason and explicit review.
+- Do not silently introduce backend dependencies or runtime packages.
+- Do not assume the planned file tree already exists.
+- Do not resolve spec contradictions by guesswork.
+
+## File Ownership
+- `CLAUDE.md` and the `memory/` directory are owned by Claude Code (the primary agent). No other agent or tool may read, write, or modify these files. They are out of scope for any sub-agent, linter hook, or automated rewrite.
+- `AGENTS.md` is the shared contract. Changes to it require explicit user approval.
+- `SPEC.md` is the product spec. Any agent may read it; modifications require user approval.

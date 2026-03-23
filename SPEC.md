@@ -27,7 +27,7 @@
 
 Вебмастера и владельцы сайтов, которым нужно:
 - Следить, не попали ли их домены в чёрные списки антивирусов
-- Быстро видеть репутацию любого сайта через badge
+- Видеть статус своих доменов через badge на иконке расширения
 - Иметь единую панель мониторинга без необходимости вручную проверять каждый домен на VirusTotal
 
 ---
@@ -119,6 +119,8 @@ chrome.alarms.create('watchlist-tick', { periodInMinutes: 60 })
 
 ```
 Queue: string[] в памяти service worker
+(in-memory, но восстановима: при пробуждении SW заново
+собирается из storage.local по last_checked + interval)
 
 Цикл обработки:
   1. pop domain из очереди
@@ -220,6 +222,8 @@ Queue: string[] в памяти service worker
 - Кнопка «Add to watchlist» (если домен ещё не в списке)
 - Если нет данных: «Not checked yet. Click "Check now" to scan.»
 
+Эта же модель данных может использоваться в compact popup-режиме, но без watchlist/settings-элементов и без отдельной сложной навигации.
+
 ### Вкладка: Settings
 - **API Key:** password-инпут + кнопка «Verify» (тестовый запрос)
 - **Check interval:** select `[12h / 24h / 3 days / 7 days]`
@@ -233,14 +237,28 @@ Queue: string[] в памяти service worker
 
 ## 10. Popup
 
-Минимальный popup для быстрого доступа:
+Отдельный `popup/` entrypoint в v1 не нужен.
+
+Используем один UI:
+- `sidepanel.html` в полном режиме для боковой панели
+- тот же `sidepanel.html` в compact popup-режиме как fallback
+
+Содержимое compact popup-режима:
 - Hostname текущего сайта
 - Цветная точка статуса + текст
-- Кнопка «Open Side Panel»
+- Краткая информация о последней проверке
+- Кнопка «Add to watchlist» или «Check now» по контексту
+- Кнопка «Open Monitor»
+- Если API key не настроен: компактный CTA на setup вместо лишних элементов
 
-**Chrome/Edge:** popup не нужен — клик по иконке открывает sidePanel напрямую (как в FastWeb). Popup только как fallback для Firefox.
+Что popup не делает:
+- не дублирует Watchlist
+- не дублирует Settings
+- не становится вторым полноценным интерфейсом
 
-**Firefox:** sidepanel.html работает как popup (без хеша `#sidebar`) и как sidebar (с хешем). Определяется в `main.ts` через `location.hash`.
+**Chrome/Edge:** popup не нужен — клик по иконке открывает sidePanel напрямую.
+
+**Firefox:** боковая панель остаётся основным режимом. Popup используется только как compact fallback и рендерит тот же UI в упрощённом виде.
 
 ---
 
@@ -328,13 +346,13 @@ type RequestMessage =
 - ❌ Платные фичи / пейволл
 - ❌ Множественные API-ключи
 - ❌ Экспорт/импорт watchlist
-- ❌ Локализация (v1 только английский)
+- ❌ Переводы на другие языки (v1 только английский; код i18n-ready — см. Q3)
 
 ---
 
 ## 15. Порядок разработки
 
-1. `wxt init` → TypeScript шаблон, wxt.config.ts с алиасами
+1. ~~`wxt init` → TypeScript шаблон, wxt.config.ts с алиасами~~ ✅ сделано
 2. `shared/types/index.ts` — типы DomainRecord, Settings, messages
 3. `shared/db.ts` — CRUD для chrome.storage (domains + settings)
 4. `shared/vt-client.ts` — VT API клиент + типы ответа
@@ -345,9 +363,8 @@ type RequestMessage =
 9. `entrypoints/background.ts` — склейка: алармы + очередь + badge + messaging
 10. `shared/theme.ts` + `assets/css/` — тема и компоненты
 11. `entrypoints/welcome/` — онбординг (3 шага)
-12. `entrypoints/sidepanel/` — основной UI (3 вкладки)
-13. `entrypoints/popup/` — минимальный popup (Firefox fallback)
-14. Тест на реальном VT-ключе, полировка
+12. `entrypoints/sidepanel/` — основной UI (3 вкладки) + compact popup-mode fallback
+13. Тест на реальном VT-ключе, полировка
 
 ---
 
@@ -355,27 +372,22 @@ type RequestMessage =
 
 > Обсудить с командой перед началом разработки
 
-### Q1: Popup — нужен ли отдельный?
-**Вариант A:** Отдельный popup (popup/) — простой, но ещё один entrypoint.
-**Вариант B:** Как в FastWeb — sidepanel.html как popup (Firefox/Opera), для Chrome popup не нужен (icon click → sidePanel.open).
-**Рекомендация:** Вариант B — меньше кода, проверенный паттерн.
-
-### Q2: Домены в local vs sync?
+### Q1: Домены в local vs sync?
 Сейчас в спеке: домены в `storage.local`, настройки в `storage.sync`.
 **Альтернатива:** домены тоже в sync → watchlist синхронизируется между устройствами (но VT-статусы всё равно устарели).
 **Рекомендация:** local. Статусы локальны, sync имеет лимит 100KB.
 
-### Q3: Badge для сайтов НЕ из watchlist?
+### Q2: Badge для сайтов НЕ из watchlist?
 **Вариант A:** Badge только для доменов из watchlist. Для остальных — пустой.
 **Вариант B:** На tab «Current Site» можно запустить проверку любого сайта — результат кешируется, badge обновляется.
 **Рекомендация:** v1 — вариант A (проще). Кеширование ad-hoc проверок — в v2.
 
-### Q4: Локализация в v1?
+### Q3: Локализация в v1?
 **Вариант A:** Только английский, i18n в v2.
 **Вариант B:** Сразу i18n-ready (data-i18n атрибуты, _locales/en), добавить языки позже.
 **Рекомендация:** Вариант B — минимальные усилия сейчас, не придётся рефакторить позже.
 
-### Q5: Название для стора
+### Q4: Название для стора
 Варианты:
 - **VirusTotal Domain Monitor** — текущее рабочее название, точно описывает функцию
 - **Domain Guard** — маркетинговее, но может ввести в заблуждение (не guard/блокировщик)
