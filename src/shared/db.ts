@@ -3,6 +3,17 @@ import { STORAGE_KEYS } from './constants';
 
 const DEFAULT_CHECK_INTERVAL: CheckInterval = 24;
 
+// --- Serialized storage access (prevents lost updates) ---
+
+let domainLock: Promise<void> = Promise.resolve();
+
+function withDomainLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = domainLock;
+  let resolve: () => void;
+  domainLock = new Promise<void>(r => { resolve = r; });
+  return prev.then(fn).finally(() => resolve!());
+}
+
 // --- Domains (storage.local) ---
 
 export async function getDomains(): Promise<Record<string, DomainRecord>> {
@@ -18,19 +29,23 @@ export async function getDomain(domain: string): Promise<DomainRecord | undefine
   return map[domain];
 }
 
-export async function saveDomain(record: DomainRecord): Promise<void> {
-  const map = await getDomains();
-  map[record.domain] = record;
-  return new Promise(resolve => {
-    chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+export function saveDomain(record: DomainRecord): Promise<void> {
+  return withDomainLock(async () => {
+    const map = await getDomains();
+    map[record.domain] = record;
+    await new Promise<void>(resolve => {
+      chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+    });
   });
 }
 
-export async function removeDomain(domain: string): Promise<void> {
-  const map = await getDomains();
-  delete map[domain];
-  return new Promise(resolve => {
-    chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+export function removeDomain(domain: string): Promise<void> {
+  return withDomainLock(async () => {
+    const map = await getDomains();
+    delete map[domain];
+    await new Promise<void>(resolve => {
+      chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+    });
   });
 }
 
@@ -66,13 +81,24 @@ export async function resetApiUsageIfNewDay(): Promise<ApiUsage> {
   return usage;
 }
 
-export async function incrementApiUsage(): Promise<ApiUsage> {
-  const usage = await resetApiUsageIfNewDay();
-  usage.count += 1;
-  await new Promise<void>(resolve => {
-    chrome.storage.local.set({ [STORAGE_KEYS.API_USAGE]: usage }, resolve);
+let usageLock: Promise<void> = Promise.resolve();
+
+function withUsageLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = usageLock;
+  let resolve: () => void;
+  usageLock = new Promise<void>(r => { resolve = r; });
+  return prev.then(fn).finally(() => resolve!());
+}
+
+export function incrementApiUsage(): Promise<ApiUsage> {
+  return withUsageLock(async () => {
+    const usage = await resetApiUsageIfNewDay();
+    usage.count += 1;
+    await new Promise<void>(resolve => {
+      chrome.storage.local.set({ [STORAGE_KEYS.API_USAGE]: usage }, resolve);
+    });
+    return usage;
   });
-  return usage;
 }
 
 // --- Settings (storage.sync) ---

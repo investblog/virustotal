@@ -54,7 +54,7 @@ export default defineConfig({
   hooks: {
     'build:manifestGenerated': (wxt, manifest) => {
       // Chrome/Edge: remove popup — icon click opens sidePanel via onClicked
-      if (wxt.config.browser === 'chrome') {
+      if (wxt.config.browser !== 'firefox') {
         if (manifest.action) {
           delete manifest.action.default_popup;
         }

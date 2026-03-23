@@ -2,7 +2,7 @@ import { defineBackground } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
 import type { QueueItem, DomainRecord } from '@shared/types';
 import type { RequestMessage } from '@shared/messaging/protocol';
-import { ALARM_NAME, THROTTLE_MS, RETRY } from '@shared/constants';
+import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET } from '@shared/constants';
 import { extractDomain } from '@shared/domain-utils';
 import {
   getDomains, getDomain, saveDomain, removeDomain,
@@ -66,6 +66,13 @@ export default defineBackground(() => {
     }
   }
 
+  async function refreshActiveBadge(): Promise<void> {
+    try {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) void updateBadgeForTab(tab.id);
+    } catch { /* ignore */ }
+  }
+
   // --- Queue processing ---
 
   function scheduleProcessQueue(): void {
@@ -113,14 +120,31 @@ export default defineBackground(() => {
           queueTimer = null;
           return;
 
-        case 'rate_limited':
-          enqueue(queue, item.domain, item.priority);
+        case 'rate_limited': {
+          await incrementApiUsage();
+          const currentUsage = await getApiUsage();
+          if (currentUsage.count >= BUDGET.DAILY_MAX) {
+            // Daily quota exhausted — stop until tomorrow
+            queue.length = 0;
+            processing = null;
+            queueTimer = null;
+            return;
+          }
+          // Per-minute rate limit — retry once after cooldown
+          const rlRetries = (retryCount.get(item.domain) ?? 0) + 1;
+          if (rlRetries <= RETRY.MAX_ATTEMPTS) {
+            retryCount.set(item.domain, rlRetries);
+            enqueue(queue, item.domain, item.priority);
+          } else {
+            retryCount.delete(item.domain);
+          }
           processing = null;
           queueTimer = setTimeout(() => {
             queueTimer = null;
             void processQueue();
           }, RETRY.RATE_LIMIT_DELAY_MS);
           return;
+        }
 
         case 'not_found': {
           retryCount.delete(item.domain);
@@ -184,10 +208,15 @@ export default defineBackground(() => {
     const domains = await getWatchlistDomains();
     const usage = await resetApiUsageIfNewDay();
 
+    // Virtual counter: account for already-queued work
+    const projectedUsage = { ...usage, count: usage.count + queue.length };
+
     for (const record of domains) {
       if (now - record.last_checked >= intervalMs) {
-        if (canEnqueue('normal', usage)) {
-          enqueue(queue, record.domain, 'normal');
+        if (canEnqueue('normal', projectedUsage)) {
+          if (enqueue(queue, record.domain, 'normal')) {
+            projectedUsage.count += 1;
+          }
         }
       }
     }
@@ -247,6 +276,7 @@ export default defineBackground(() => {
           const domain = msg.domain;
           enqueue(queue, domain, 'high');
           scheduleProcessQueue();
+          void refreshActiveBadge();
           sendResponse({ ok: true });
           break;
         }
@@ -267,6 +297,7 @@ export default defineBackground(() => {
             await saveDomain(record);
             enqueue(queue, domain, 'high');
             scheduleProcessQueue();
+            await refreshActiveBadge();
             sendResponse({ ok: true });
           })();
           return true;
@@ -275,6 +306,7 @@ export default defineBackground(() => {
         case 'REMOVE_DOMAIN': {
           void (async () => {
             await removeDomain(msg.domain);
+            await refreshActiveBadge();
             sendResponse({ ok: true });
           })();
           return true;
