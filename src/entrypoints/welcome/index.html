@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title data-i18n="welcomeTitle">Welcome — VT Domain Monitor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../../assets/css/theme.css" />
+  <link rel="stylesheet" href="../../assets/css/components.css" />
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+    }
+    .welcome {
+      max-width: 440px;
+      padding: var(--space-6);
+      text-align: center;
+    }
+    .welcome__logo {
+      width: 64px; height: 64px;
+      margin-bottom: var(--space-4);
+    }
+    .welcome__heading {
+      font-size: var(--fs-2xl);
+      font-weight: var(--fw-bold);
+      margin: 0 0 var(--space-2);
+    }
+    .welcome__sub {
+      font-size: var(--fs-md);
+      color: var(--text-muted);
+      margin: 0 0 var(--space-6);
+      line-height: var(--lh-body);
+    }
+    .wizard-step { display: flex; flex-direction: column; gap: var(--space-4); align-items: center; }
+    .wizard-step[hidden] { display: none; }
+    .wizard-step .field { width: 100%; text-align: left; }
+    .key-status, .domain-status {
+      font-size: var(--fs-sm);
+      min-height: 1.5em;
+    }
+    .vt-link {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    .vt-link:hover { text-decoration: underline; }
+    .wizard-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="welcome">
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-bar__fill" id="progressFill" style="width: 33%"></div>
+    </div>
+
+    <!-- Step 1: Intro -->
+    <section class="wizard-step" id="step1">
+      <img class="welcome__logo" src="/icons/icon-128.png" alt="" />
+      <h1 class="welcome__heading" data-i18n="welcomeHeading">VirusTotal Domain Monitor</h1>
+      <p class="welcome__sub" data-i18n="welcomeSub">Monitor your domains' reputation with scheduled checks and instant badge indicators.</p>
+      <button class="btn btn--primary" id="btnGetStarted" data-i18n="welcomeGetStarted">Get started</button>
+    </section>
+
+    <!-- Step 2: API Key -->
+    <section class="wizard-step" id="step2" hidden>
+      <h2 data-i18n="welcomeApiKeyTitle">Set up your API key</h2>
+      <p style="font-size: var(--fs-sm); color: var(--text-muted);">
+        <span data-i18n="welcomeApiKeyDesc">Create a free VirusTotal account and copy your Public API key.</span><br/>
+        <a class="vt-link" href="https://www.virustotal.com/gui/my-apikey" target="_blank" rel="noreferrer">virustotal.com/gui/my-apikey ↗</a>
+      </p>
+      <div class="field" style="width: 100%;">
+        <label class="field__label" for="apiKeyInput" data-i18n="apiKeyLabel">VirusTotal API Key</label>
+        <input type="password" class="input" id="apiKeyInput" autocomplete="off" />
+      </div>
+      <div class="key-status" id="keyStatus"></div>
+      <div class="wizard-actions">
+        <button class="btn btn--primary" id="btnVerifyKey" data-i18n="welcomeVerifyKey">Verify & Save</button>
+        <button class="btn btn--ghost" id="btnNextStep2" disabled data-i18n="welcomeNext">Next</button>
+      </div>
+    </section>
+
+    <!-- Step 3: First Domain -->
+    <section class="wizard-step" id="step3" hidden>
+      <h2 data-i18n="welcomeFirstDomain">Add your first domain</h2>
+      <div class="field" style="width: 100%;">
+        <input class="input" id="domainInput" placeholder="example.com" data-i18n-placeholder="domainPlaceholder" />
+      </div>
+      <div class="domain-status" id="domainStatus"></div>
+      <div class="wizard-actions">
+        <button class="btn btn--primary" id="btnAddDomain" data-i18n="welcomeAddCheck">Add & Check now</button>
+        <button class="btn btn--ghost" id="btnSkip" data-i18n="welcomeSkip">Skip</button>
+      </div>
+    </section>
+
+    <!-- Done -->
+    <section class="wizard-step" id="stepDone" hidden>
+      <h2 data-i18n="welcomeDone">Setup complete!</h2>
+      <button class="btn btn--primary" id="btnOpenPanel" data-i18n="welcomeOpenPanel">Open Side Panel</button>
+    </section>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

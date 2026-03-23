@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" id="html-root">
+<head>
+  <meta charset="utf-8" />
+  <title data-i18n="panelTitle">VT Domain Monitor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../../assets/css/theme.css" />
+  <link rel="stylesheet" href="../../assets/css/components.css" />
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="ico-shield" viewBox="0 0 20 20"><path fill="currentColor" d="M10 1 3 4.5v5c0 4.7 3 8.3 7 9.5 4-1.2 7-4.8 7-9.5v-5zm0 9h5.5c-.4 3.5-2.7 6.3-5.5 7.4V10z"/></symbol>
+    <symbol id="ico-globe" viewBox="0 0 20 20"><path fill="currentColor" d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0M2 10c0-.61.08-1.21.21-1.78L6.99 13v1c0 1.1.9 2 2 2v1.93A8.01 8.01 0 0 1 2 10m13.89 5.4A1.99 1.99 0 0 0 14 14h-1v-3c0-.55-.45-1-1-1H6V8h2c.55 0 1-.45 1-1V5h2c1.1 0 2-.9 2-2v-.41A7.998 7.998 0 0 1 18 10c0 2.08-.8 3.97-2.11 5.4"/></symbol>
+    <symbol id="ico-cog" viewBox="0 0 20 20"><path fill="currentColor" d="M9.73 13.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46a.49.49 0 0 0-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98L12.23.42a.506.506 0 0 0-.5-.42h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L2.3 9c-.04.34-.07.67-.07 1s.03.65.07.97L.19 12.63c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64z"/></symbol>
+    <symbol id="ico-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  </svg>
+
+  <div class="panel">
+    <header class="panel__header">
+      <div class="panel__header-left">
+        <img class="panel__brand-icon" src="/icons/icon-32.png" alt="" />
+        <h1 class="panel__title" data-i18n="panelTitle">VT Domain Monitor</h1>
+      </div>
+      <div class="panel__actions">
+        <button class="btn-icon" type="button" data-action="toggle-theme" data-i18n-title="themeBtn" title="Toggle theme">
+          <svg width="18" height="18"><use href="#ico-moon"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="panel__nav" id="navTabs">
+      <button class="nav-tab is-active" data-tab="watchlist">
+        <svg class="nav-tab__icon"><use href="#ico-shield"/></svg>
+        <span data-i18n="tabWatchlist">Watchlist</span>
+      </button>
+      <button class="nav-tab" data-tab="current">
+        <svg class="nav-tab__icon"><use href="#ico-globe"/></svg>
+        <span data-i18n="tabCurrent">Current Site</span>
+      </button>
+      <button class="nav-tab" data-tab="settings">
+        <svg class="nav-tab__icon"><use href="#ico-cog"/></svg>
+        <span data-i18n="tabSettings">Settings</span>
+      </button>
+    </nav>
+
+    <main class="panel__body">
+
+      <!-- Watchlist -->
+      <section class="view" data-view-content="watchlist">
+        <div class="domain-form">
+          <div class="field">
+            <label class="field__label" for="addDomainInput" data-i18n="addDomainLabel">Add domain</label>
+            <div class="domain-form__row">
+              <input id="addDomainInput" class="input" placeholder="example.com" data-i18n-placeholder="domainPlaceholder" />
+              <button id="btnAddDomain" class="btn btn--primary" type="button" data-i18n="addBtn">Add</button>
+            </div>
+          </div>
+        </div>
+        <div id="watchlistContainer" class="domain-list"></div>
+      </section>
+
+      <!-- Current Site -->
+      <section class="view" data-view-content="current" hidden>
+        <div id="currentSiteInfo"></div>
+      </section>
+
+      <!-- Settings -->
+      <section class="view" data-view-content="settings" hidden>
+        <div class="settings-section">
+          <div class="field">
+            <label class="field__label" for="settingsApiKey" data-i18n="apiKeyLabel">VirusTotal API Key</label>
+            <div class="domain-form__row">
+              <input type="password" id="settingsApiKey" class="input" autocomplete="off" />
+              <button id="btnVerifyKey" class="btn btn--outline" type="button" data-i18n="verifyKeyBtn">Verify</button>
+            </div>
+          </div>
+          <div class="inline-msg" id="settingsKeyStatus"></div>
+        </div>
+
+        <div class="settings-section">
+          <div class="field">
+            <label class="field__label" for="settingsInterval" data-i18n="checkIntervalLabel">Check interval</label>
+            <select id="settingsInterval" class="input">
+              <option value="12" data-i18n="interval12h">12 hours</option>
+              <option value="24" selected data-i18n="interval24h">24 hours</option>
+              <option value="72" data-i18n="interval3d">3 days</option>
+              <option value="168" data-i18n="interval7d">7 days</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="api-usage" id="apiUsageDisplay" data-i18n="apiUsageLabel">API usage today</div>
+        </div>
+
+        <div class="settings-section">
+          <button id="btnCheckAll" class="btn btn--outline" type="button" data-i18n="checkAllBtn">Check all now</button>
+          <button id="btnSetupGuide" class="btn btn--ghost" type="button" data-i18n="setupGuideBtn">Setup guide</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Popup-mode footer -->
+    <div id="popupFooter" hidden style="padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border-subtle);">
+      <button id="btnOpenMonitor" class="btn btn--primary" style="width: 100%;" type="button" data-i18n="openMonitorBtn">Open Monitor</button>
+    </div>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+import type { DomainRecord, ApiUsage, CheckInterval, ThemePreference } from './types';
+import { STORAGE_KEYS } from './constants';
+
+const DEFAULT_CHECK_INTERVAL: CheckInterval = 24;
+
+// --- Domains (storage.local) ---
+
+export async function getDomains(): Promise<Record<string, DomainRecord>> {
+  return new Promise(resolve => {
+    chrome.storage.local.get({ [STORAGE_KEYS.DOMAINS]: {} }, data => {
+      resolve((data[STORAGE_KEYS.DOMAINS] || {}) as Record<string, DomainRecord>);
+    });
+  });
+}
+
+export async function getDomain(domain: string): Promise<DomainRecord | undefined> {
+  const map = await getDomains();
+  return map[domain];
+}
+
+export async function saveDomain(record: DomainRecord): Promise<void> {
+  const map = await getDomains();
+  map[record.domain] = record;
+  return new Promise(resolve => {
+    chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+  });
+}
+
+export async function removeDomain(domain: string): Promise<void> {
+  const map = await getDomains();
+  delete map[domain];
+  return new Promise(resolve => {
+    chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+  });
+}
+
+export async function getWatchlistDomains(): Promise<DomainRecord[]> {
+  const map = await getDomains();
+  return Object.values(map).filter(d => d.watchlist);
+}
+
+// --- API Usage (storage.local) ---
+
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function getApiUsage(): Promise<ApiUsage> {
+  return new Promise(resolve => {
+    chrome.storage.local.get({ [STORAGE_KEYS.API_USAGE]: { count: 0, date: todayUtc() } }, data => {
+      resolve(data[STORAGE_KEYS.API_USAGE] as ApiUsage);
+    });
+  });
+}
+
+export async function resetApiUsageIfNewDay(): Promise<ApiUsage> {
+  const usage = await getApiUsage();
+  const today = todayUtc();
+  if (usage.date !== today) {
+    const fresh: ApiUsage = { count: 0, date: today };
+    await new Promise<void>(resolve => {
+      chrome.storage.local.set({ [STORAGE_KEYS.API_USAGE]: fresh }, resolve);
+    });
+    return fresh;
+  }
+  return usage;
+}
+
+export async function incrementApiUsage(): Promise<ApiUsage> {
+  const usage = await resetApiUsageIfNewDay();
+  usage.count += 1;
+  await new Promise<void>(resolve => {
+    chrome.storage.local.set({ [STORAGE_KEYS.API_USAGE]: usage }, resolve);
+  });
+  return usage;
+}
+
+// --- Settings (storage.sync) ---
+
+export async function getApiKey(): Promise<string> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get({ [STORAGE_KEYS.VT_API_KEY]: '' }, data => {
+      resolve(data[STORAGE_KEYS.VT_API_KEY] as string);
+    });
+  });
+}
+
+export async function saveApiKey(key: string): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.VT_API_KEY]: key }, resolve);
+  });
+}
+
+export async function getCheckInterval(): Promise<CheckInterval> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get({ [STORAGE_KEYS.CHECK_INTERVAL]: DEFAULT_CHECK_INTERVAL }, data => {
+      resolve(data[STORAGE_KEYS.CHECK_INTERVAL] as CheckInterval);
+    });
+  });
+}
+
+export async function saveCheckInterval(hours: CheckInterval): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.CHECK_INTERVAL]: hours }, resolve);
+  });
+}
+
+export async function getThemePreference(): Promise<ThemePreference> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get({ [STORAGE_KEYS.THEME]: 'auto' }, data => {
+      resolve(data[STORAGE_KEYS.THEME] as ThemePreference);
+    });
+  });
+}
+
+export async function saveThemePreference(pref: ThemePreference): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.THEME]: pref }, resolve);
+  });
+}
