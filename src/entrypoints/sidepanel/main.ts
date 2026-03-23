@@ -276,6 +276,15 @@ async function renderCurrentSite(): Promise<void> {
     actionsDiv.appendChild(addBtn);
   }
 
+  // VT report link
+  const vtLink = document.createElement('a');
+  vtLink.className = 'btn btn--ghost btn--sm';
+  vtLink.href = `https://www.virustotal.com/gui/domain/${domain}`;
+  vtLink.target = '_blank';
+  vtLink.rel = 'noreferrer';
+  vtLink.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-shield-search"/></svg> VT Report';
+  actionsDiv.appendChild(vtLink);
+
   container.appendChild(actionsDiv);
 }
 

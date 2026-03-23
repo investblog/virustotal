@@ -146,6 +146,18 @@ Bulk-операции не должны ломать текущую budget model
 - Optional import mode: `Collapse to registrable domain`
 - `www.` по-прежнему нормализуется как сейчас
 
+### Exclude List
+
+Встроенный список исключений для ad-hoc badge — домены, которые не нужно проверять при посещении.
+
+- ~20 предустановленных: google.com, youtube.com, facebook.com, twitter.com, github.com, reddit.com, wikipedia.org, amazon.com, microsoft.com, apple.com, virustotal.com, linkedin.com, instagram.com, stackoverflow.com, etc.
+- Пользователь может добавлять свои (шумные домены, внутренние сервисы)
+- Пользователь может убирать предустановленные, если хочет мониторить
+- Хранение: `storage.sync` (синхронизируется между устройствами)
+- Домены из exclude list: пустой badge, не ставятся в ad-hoc очередь
+- Watchlist всё равно разрешает добавление исключённых доменов (явное действие)
+- UI: секция в Settings → «Excluded domains» с возможностью add/remove + reset to defaults
+
 ### Search
 
 - Локальный поиск без сети

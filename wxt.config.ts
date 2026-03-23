@@ -25,13 +25,6 @@ export default defineConfig({
 
     host_permissions: ['https://www.virustotal.com/*'],
 
-    commands: {
-      [browser === 'firefox' ? '_execute_sidebar_action' : '_execute_side_panel']: {
-        suggested_key: { default: 'Ctrl+Shift+V' },
-        description: 'Open VT Domain Monitor',
-      },
-    },
-
     icons: {
       16: 'icons/icon-16.png',
       32: 'icons/icon-32.png',
