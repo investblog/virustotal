@@ -287,7 +287,7 @@ async function renderCurrentSite(): Promise<void> {
   vtLink.href = `https://www.virustotal.com/gui/domain/${domain}`;
   vtLink.target = '_blank';
   vtLink.rel = 'noreferrer';
-  vtLink.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-shield-search"/></svg> VT Report';
+  vtLink.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-vt"/></svg> VT Report';
   actionsDiv.appendChild(vtLink);
 
   container.appendChild(actionsDiv);
