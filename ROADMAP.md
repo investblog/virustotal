@@ -196,3 +196,31 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 - Dashboard с графиками репутации
 - Интеграция с Google Search Console (site verification)
 - Платный tier с премиум VT ключом
+
+---
+
+## Next in Line — DMCA Abuse Monitor
+
+Отдельное расширение в линейке, тот же стек (WXT + vanilla DOM), та же архитектура watchlist + drawer.
+
+**Суть:** мониторинг DMCA-злоупотреблений против доменов вебмастера.
+
+**Источники данных:**
+- **Lumen Database** (`lumendatabase.org`) — API для поиска DMCA/cease & desist notices по домену
+- **Google Transparency Report** — публичные данные по DMCA takedown requests в поиске
+- **Google Search Console** — уведомления о removals (требует верификацию владельца)
+
+**Функциональность:**
+- Watchlist доменов (переносим паттерн)
+- Фоновый мониторинг Lumen API по расписанию
+- Badge/алерт: «На ваш домен подана DMCA жалоба»
+- Drawer с деталями жалобы: кто подал, на какой контент, дата
+- Counter-notice шаблон (+ AI-генерация через Anthropic API)
+- История жалоб по домену
+
+**Переносится из VT Monitor:**
+- Скелет проекта, WXT config, тема, i18n, messaging protocol
+- Side panel layout (tabs, domain cards, settings)
+- Welcome wizard (API key → first domain)
+- Drawer pattern (из v2.0)
+- Budget/throttle механика (адаптировать под Lumen API limits)
