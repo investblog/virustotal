@@ -290,6 +290,27 @@ body {
   display: flex;
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 var(--space-4);
+  position: relative;
+}
+.panel__nav::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 30%;
+  background: var(--primary);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.panel__nav.is-loading::after {
+  opacity: 1;
+  animation: navSlide 1s ease-in-out infinite;
+}
+@keyframes navSlide {
+  0% { left: 0; width: 30%; }
+  50% { left: 40%; width: 40%; }
+  100% { left: 100%; width: 30%; }
 }
 .nav-tab {
   display: flex;

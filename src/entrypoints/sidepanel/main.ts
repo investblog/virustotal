@@ -151,9 +151,13 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
 // --- Current Site ---
 
 async function renderCurrentSite(): Promise<void> {
+  const nav = document.getElementById('navTabs');
+  nav?.classList.add('is-loading');
+
   const container = document.getElementById('currentSiteInfo')!;
   container.replaceChildren();
 
+  try {
   // Check for API key first
   const apiKey = await getApiKey();
 
@@ -291,6 +295,9 @@ async function renderCurrentSite(): Promise<void> {
   actionsDiv.appendChild(vtLink);
 
   container.appendChild(actionsDiv);
+  } finally {
+    nav?.classList.remove('is-loading');
+  }
 }
 
 // --- Settings ---
