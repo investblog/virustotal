@@ -27,7 +27,7 @@ export default defineConfig({
 
     commands: {
       [browser === 'firefox' ? '_execute_sidebar_action' : '_execute_side_panel']: {
-        suggested_key: { default: 'Alt+V' },
+        suggested_key: { default: 'Ctrl+Shift+V' },
         description: 'Open VT Domain Monitor',
       },
     },

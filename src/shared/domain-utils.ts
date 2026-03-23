@@ -30,6 +30,9 @@ export function extractDomain(url: string): string | null {
   if (hostname.startsWith('www.')) hostname = hostname.slice(4);
   if (!hostname || !hostname.includes('.')) return null;
 
+  const parts = hostname.split('.');
+  if (parts.length < 2 || parts.some(p => !p) || parts[parts.length - 1].length < 2) return null;
+
   return hostname;
 }
 
@@ -50,7 +53,11 @@ export function normalizeDomainInput(input: string): string | null {
   // Validate by constructing URL
   try {
     const url = new URL(`https://${hostname}`);
-    return url.hostname.toLowerCase().replace(/^www\./, '');
+    const h = url.hostname.toLowerCase().replace(/^www\./, '');
+    // Must have at least two parts with TLD >= 2 chars (e.g. "a.co")
+    const parts = h.split('.');
+    if (parts.length < 2 || parts.some(p => !p) || parts[parts.length - 1].length < 2) return null;
+    return h;
   } catch {
     return null;
   }
