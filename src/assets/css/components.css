@@ -62,6 +62,23 @@ body {
   min-height: 0;
 }
 
+.btn--loading {
+  pointer-events: none;
+  opacity: 0.7;
+  position: relative;
+  color: transparent !important;
+}
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  border: 2px solid var(--text-muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .btn-icon {
   display: inline-flex;
   align-items: center;
@@ -99,6 +116,7 @@ body {
   transition: border-color var(--transition-fast);
 }
 .input::placeholder { color: var(--text-subtle); }
+.input--error { border-color: var(--danger); }
 .input:focus {
   outline: none;
   border-color: var(--input-border-focus);

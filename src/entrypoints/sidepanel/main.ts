@@ -103,7 +103,12 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     const meta = document.createElement('div');
     meta.className = 'domain-card__meta';
     const checked = document.createElement('span');
-    checked.textContent = record.last_checked ? timeAgo(record.last_checked) : 'not checked';
+    if (record.last_checked) {
+      checked.dataset.timestamp = String(record.last_checked);
+      checked.textContent = timeAgo(record.last_checked);
+    } else {
+      checked.textContent = 'not checked';
+    }
     meta.appendChild(checked);
 
     if (isStale(record)) {
@@ -122,6 +127,7 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     checkBtn.className = 'btn btn--sm btn--outline';
     checkBtn.textContent = _('checkNowBtn', 'Check');
     checkBtn.addEventListener('click', () => {
+      checkBtn.classList.add('btn--loading');
       void sendMessage({ type: 'CHECK_DOMAIN', domain: record.domain });
     });
 
@@ -144,6 +150,9 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
 async function renderCurrentSite(): Promise<void> {
   const container = document.getElementById('currentSiteInfo')!;
   container.replaceChildren();
+
+  // Check for API key first
+  const apiKey = await getApiKey();
 
   let domain: string | null = null;
   try {
@@ -174,6 +183,22 @@ async function renderCurrentSite(): Promise<void> {
   domainText.textContent = domain;
   header.appendChild(domainText);
   container.appendChild(header);
+
+  // No API key → setup CTA
+  if (!apiKey) {
+    const cta = document.createElement('div');
+    cta.className = 'empty-state';
+    cta.innerHTML = `<p style="margin-bottom: var(--space-3)">Set up your API key to check domains</p>`;
+    const setupBtn = document.createElement('button');
+    setupBtn.className = 'btn btn--primary btn--sm';
+    setupBtn.textContent = 'Open Setup';
+    setupBtn.addEventListener('click', () => {
+      void browser.tabs.create({ url: browser.runtime.getURL('/welcome.html') });
+    });
+    cta.appendChild(setupBtn);
+    container.appendChild(cta);
+    return;
+  }
 
   if (!record || !record.vt_stats) {
     const msg = document.createElement('div');
@@ -209,6 +234,7 @@ async function renderCurrentSite(): Promise<void> {
     dates.className = 'current-site__dates';
     if (record.last_checked) {
       const el = document.createElement('span');
+      el.dataset.timestamp = String(record.last_checked);
       el.textContent = `Checked: ${timeAgo(record.last_checked)}`;
       dates.appendChild(el);
     }
@@ -235,6 +261,7 @@ async function renderCurrentSite(): Promise<void> {
   checkBtn.className = 'btn btn--primary btn--sm';
   checkBtn.textContent = _('checkNowBtn', 'Check now');
   checkBtn.addEventListener('click', () => {
+    checkBtn.classList.add('btn--loading');
     void sendMessage({ type: 'CHECK_DOMAIN', domain: domain! });
   });
   actionsDiv.appendChild(checkBtn);
@@ -394,18 +421,49 @@ void (async function boot(): Promise<void> {
   });
 
   // Add domain form
-  document.getElementById('btnAddDomain')?.addEventListener('click', () => {
-    const input = document.getElementById('addDomainInput') as HTMLInputElement;
-    const domain = normalizeDomainInput(input.value);
-    if (!domain) return;
-    void sendMessage({ type: 'ADD_DOMAIN', domain });
-    input.value = '';
+  const addInput = document.getElementById('addDomainInput') as HTMLInputElement;
+  const addBtn = document.getElementById('btnAddDomain') as HTMLButtonElement;
+  const addError = document.getElementById('addDomainError')!;
+
+  function clearAddError(): void {
+    addInput?.classList.remove('input--error');
+    addError.className = 'inline-msg';
+    addError.textContent = '';
+  }
+
+  addInput?.addEventListener('input', clearAddError);
+
+  addBtn?.addEventListener('click', () => {
+    const domain = normalizeDomainInput(addInput.value);
+    if (!domain) {
+      if (addInput.value.trim()) {
+        addInput.classList.add('input--error');
+        addError.textContent = 'Enter a valid domain';
+        addError.className = 'inline-msg is-visible inline-msg--error';
+      }
+      return;
+    }
+    clearAddError();
+    addBtn.classList.add('btn--loading');
+    void sendMessage({ type: 'ADD_DOMAIN', domain }).finally(() => {
+      addBtn.classList.remove('btn--loading');
+    });
+    addInput.value = '';
   });
 
   // Enter key in add domain input
-  document.getElementById('addDomainInput')?.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter') {
-      document.getElementById('btnAddDomain')?.click();
-    }
+  addInput?.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') addBtn?.click();
   });
+
+  // Relative time auto-refresh (every 60s)
+  setInterval(() => {
+    document.querySelectorAll<HTMLElement>('[data-timestamp]').forEach(el => {
+      const ts = Number(el.dataset.timestamp);
+      if (ts) {
+        const prefix = el.textContent?.startsWith('Checked:') ? 'Checked: ' : '';
+        el.textContent = prefix + timeAgo(ts);
+      }
+    });
+  }, 60_000);
 })();
