@@ -21,18 +21,19 @@
 
 Фиксы и улучшения по результатам ручного тестирования MVP.
 
-- [ ] Валидация домена в UI с визуальным фидбэком
-- [ ] Пустой state для Current Site при отсутствии API key
-- [ ] Loading-спиннер при проверке домена
-- [ ] Relative time auto-refresh без перезагрузки
-- [ ] Keyboard shortcut для открытия side panel
+- [x] Валидация домена в UI с визуальным фидбэком
+- [x] Пустой state для Current Site при отсутствии API key
+- [x] Loading-спиннер при проверке домена
+- [x] Relative time auto-refresh без перезагрузки
+- [x] VT Report icon-link в Current Site
+- [ ] ~~Keyboard shortcut~~ — отменён (конфликты с браузерами)
 - [ ] Edge smoke test и store-ready проверка
 
 ---
 
 ## v1.5 - Drawer Shell + Bulk Add
 
-Статус: proposal for discussion.
+Статус: **implemented**.
 
 Drawer нужен как общий UI-механизм side panel. Первое применение - Bulk Add.
 Это инвестиция в общий shell, который потом переиспользуется в v2.0 для dispute flow.
