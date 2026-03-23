@@ -41,11 +41,10 @@ Response: data.attributes.last_analysis_stats → { malicious, suspicious, harml
 | clean | `#22c55e` | `✓` |
 | suspicious | `#f59e0b` | `!` |
 | malicious | `#ef4444` | `✗` |
-| stale | `#6b7280` | `?` |
 | unknown | `#6b7280` | `?` |
 | pending | `#3b82f6` | `…` |
 
-Badge for ALL domains. Stale = VT scan > 30 days → gray. Ad-hoc cache on first visit.
+Badge for ALL domains. `stale` is a rendering overlay (not stored status): `vt_last_analysis_date > 30d` → gray `?`. Ad-hoc cache on first visit, budget-gated (100 ad-hoc/day).
 
 ## Key Conventions
 - Entrypoint scripts: `main.ts` inside directories

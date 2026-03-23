@@ -138,24 +138,24 @@ By default, do not create a separate `popup/` entrypoint. Reuse `sidepanel/` in 
 - No backend/proxy, notifications bot, history tracking, multiple API keys, URL scanning, or import/export in v1.
 - Reuse FastWeb patterns where they fit, but do not copy unrelated product behavior.
 
-## Decisions Currently Favored
-Use these defaults unless the user explicitly changes the spec:
+## Accepted Decisions
 
-- Keep domain records in `storage.local`; keep settings in `storage.sync`.
-- Chrome/Edge should open the side panel from the extension icon.
-- Do not create a separate `popup/` entrypoint by default; Firefox fallback should reuse the sidepanel UI in compact mode.
-- Badge works for ALL domains: watchlist auto-refreshes on schedule, ad-hoc domains are checked on first visit and cached (`watchlist: false`).
-- Stale VT data (`vt_last_analysis_date` > 30 days) → gray badge regardless of stats. Show warning in UI.
-- Track API usage (`requests_today` + date) in `storage.local`. Show counter in Settings.
-- Queue has priorities: `high` (user action) > `normal` (watchlist schedule) > `low` (ad-hoc tab visit).
-- UI copy uses `data-i18n` attributes from day one with `_locales/en`. No translations in v1, but i18n-ready.
-
-## Resolved Questions
-- **Store name**: VirusTotal Domain Monitor.
-- **Badge scope**: all domains, not watchlist-only. Ad-hoc cache on first visit.
-- **Stale data**: gray badge if VT scan > 30 days. Rescan API (`POST /analyse`) deferred to v2.
-- **i18n**: code is i18n-ready (`data-i18n` + `_locales/en`), no translations shipped in v1.
-- **Domains storage**: `storage.local`. Settings in `storage.sync`.
+- Domain records in `storage.local`; settings in `storage.sync`.
+- Chrome/Edge: icon click → `sidePanel.open()`, no popup.
+- Firefox: `action.default_popup: 'sidepanel.html'` (compact mode), `sidebar_action.default_panel: 'sidepanel.html#sidebar'` (full mode). Mode detected via `location.hash.includes('sidebar')`.
+- No separate `popup/` entrypoint.
+- Badge for ALL domains with budget guard:
+  - Watchlist (`watchlist: true`): auto-refresh on schedule, priority `normal`.
+  - Ad-hoc (`watchlist: false`): checked on first visit, cached, no auto-refresh, priority `low`.
+  - Budget: ad-hoc blocked at 400 req/day, all non-explicit at 480.
+  - Queue dedup: never queue a domain already in queue.
+  - Ad-hoc cooldown: skip if `last_checked` < 7 days.
+- `stale` is a rendering overlay, not a stored status. Computed from `vt_last_analysis_date > 30 days` → gray badge. Underlying verdict preserved in UI detail view.
+- DomainRecord lifecycle: Add → Promote (ad-hoc → watchlist) → Remove = delete record.
+- Domain normalization: lowercase, strip `www.`, skip chrome://, about:, IPs, localhost. IDN → punycode.
+- API usage counter (`api_usage` in `storage.local`), shown in Settings.
+- Store name: VirusTotal Domain Monitor.
+- i18n-ready (`data-i18n` + `_locales/en`), no translations in v1.
 
 ## Build Order
 1. Create shared types, constants, storage helpers, VT client, queue, alarm helpers, badge logic, theme helpers, and messaging protocol.
