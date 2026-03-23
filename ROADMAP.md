@@ -30,18 +30,83 @@
 
 ---
 
+## v1.5 — Drawer Shell + Bulk Add
+
+Drawer как **общий UI-механизм** side panel. Первое применение — Bulk Add.
+Это инвестиция: drawer shell переиспользуется в v2.0 (Dispute) и далее.
+
+### Drawer shell
+
+Общий компонент слайд-ин панели (паттерн redirect-inspector):
+- `src/entrypoints/sidepanel/components/drawer.ts` — `createDrawer(title, onClose): { aside, body, footer }`
+- `src/assets/css/components.css` — `.drawer`, `.drawer__overlay`, `.drawer__panel`, `.drawer__header`, `.drawer__body`, `.drawer__footer`
+- DOM-хелпер `el(tag, cls?, text?)` в `src/shared/ui-helpers.ts`
+- Slide-in animation, overlay click to close, close button
+
+### Bulk Add Drawer
+
+- Кнопка «Bulk add» в Watchlist → открывает drawer
+- Textarea для вставки доменов / URL / произвольного текста
+- Live count найденных доменов + preflight:
+  - valid / duplicate / already in watchlist / invalid
+- Action: `Add only` или `Add + check now`
+- Estimate: `Estimated API cost: N requests`
+- Парсер доменов: переиспользовать подход из cloudflare-tools
+
+### IDN policy
+
+- Storage и API: ASCII / punycode
+- UI: Unicode отображение
+- Поиск: матч по обеим репрезентациям
+- Ref: `W:\Projects\cloudflare-tools\src\shared\domains\idn.ts`
+
+---
+
+## v1.6 — Research Lists
+
+Эволюция Watchlist → Domains с поддержкой именованных списков.
+
+### Модель
+
+Текущий `watchlist: boolean` → `list_id: string` (default `'watchlist'`):
+- `DomainRecord` остаётся VT cache по домену (один на домен)
+- Добавляется `list_id` — к какому списку принадлежит
+- `'watchlist'` — авто-проверка по расписанию
+- Любой другой list_id — research, manual check only
+
+> Many-to-many (ListMembership) — отложено до реальной потребности.
+> Пока one domain = one list. Promote из research в watchlist = смена list_id.
+
+### UI
+
+- Таб Watchlist переименовывается в **Domains**
+- Dropdown сверху для выбора списка: `Watchlist`, `Auction Batch A`, etc.
+- `New list` / `Rename` / `Delete list`
+- `Check selected` / `Check unchecked` / `Check first 20` — manual batch actions
+- Domains из research lists не участвуют в авто-проверках и ad-hoc badge
+
+### Квота
+
+- Research lists: zero auto-check cost
+- Bulk check: только по явному действию + обязательный estimate перед запуском
+- Budget model не меняется (400 watchlist / 100 ad-hoc / 480 cap)
+
+### Поддомены
+
+- По умолчанию: registrable domain only (strip subdomain)
+- Checkbox «Include subdomains» в Bulk Add drawer для продвинутых
+
+---
+
 ## v2.0 — False Positive Resolution
 
-**Ключевая фича:** когда вебмастер видит, что его домен помечен как malicious/suspicious — помочь ему оспорить false positive.
+**Ключевая фича:** помочь вебмастеру оспорить false positive.
 
-### Что нужно от VT API
+### VT API
 
-Расширить `vt-client.ts`: помимо `last_analysis_stats` парсить `last_analysis_results` — объект с per-vendor вердиктами:
+Расширить `vt-client.ts`: парсить `last_analysis_results` — per-vendor вердикты:
 
 ```typescript
-// data.attributes.last_analysis_results
-// { "Vendor Name": { category: "malicious", result: "Phishing", ... }, ... }
-
 interface VtVendorResult {
   vendor: string;
   category: 'malicious' | 'suspicious' | 'harmless' | 'undetected';
@@ -49,106 +114,59 @@ interface VtVendorResult {
 }
 ```
 
-Это даёт список конкретных вендоров, которые залистили домен.
+### Dispute Drawer
 
-### Drawer — «Dispute False Positive»
-
-Слайд-ин панель (паттерн из redirect-inspector):
+Переиспользует drawer shell из v1.5:
 
 ```
-<aside class="drawer">
-  <div class="drawer__overlay" />
-  <div class="drawer__panel">
-    <header>  "example.com — flagged by 3 vendors"  [×]
-    <body>
-      ┌─ Vendor Card ──────────────────────┐
-      │  🔴 Kaspersky — "Phishing"         │
-      │  [Open dispute form ↗]             │
-      │  [Copy template ⎘]                │
-      └────────────────────────────────────┘
-      ┌─ Vendor Card ──────────────────────┐
-      │  🟡 ESET — "Suspicious"            │
-      │  [Open dispute form ↗]             │
-      │  [Copy template ⎘]                │
-      └────────────────────────────────────┘
-      ...
-    <footer>
-      "Tip: After vendors remove the flag, request a VT rescan."
-      [Request rescan]
-  </div>
+drawer header:  "example.com — flagged by 3 vendors"  [×]
+drawer body:
+  ┌─ Vendor Card ──────────────────────┐
+  │  🔴 Kaspersky — "Phishing"         │
+  │  [Open dispute form ↗]             │
+  │  [Copy template ⎘]                │
+  │  Status: ○ Not disputed            │
+  └────────────────────────────────────┘
+  ...
+drawer footer:
+  "After vendors remove flags, request a VT rescan."
+  [Request rescan]
 ```
 
 ### Vendor Database
 
-`src/shared/vendors.ts` — маппинг вендоров на формы для оспаривания:
+`src/shared/vendors.ts` — 100+ вендоров из VT docs + False-Positive-Center:
+- Вендоры с веб-формами: прямая ссылка «Open dispute form ↗»
+- Вендоры только с email: `mailto:` ссылка + «Copy template ⎘»
 
-```typescript
-interface VendorInfo {
-  name: string;
-  disputeUrl: string;       // URL формы false positive
-  templateKey: string;       // ключ шаблона обращения
-}
-
-// Пример:
-{ name: 'Kaspersky', disputeUrl: 'https://opentip.kaspersky.com/', templateKey: 'kaspersky' }
-{ name: 'ESET',      disputeUrl: 'https://phishing.eset.com/report', templateKey: 'eset' }
-{ name: 'Google Safebrowsing', disputeUrl: 'https://safebrowsing.google.com/safebrowsing/report_error/', templateKey: 'google' }
-```
+Источники:
+- https://docs.virustotal.com/docs/false-positive-contacts
+- https://github.com/yaronelh/False-Positive-Center
 
 ### Шаблоны обращений
 
-`src/shared/dispute-templates.ts` — генератор текста для каждого вендора:
+`src/shared/dispute-templates.ts`:
+- Базовый: подстановка переменных (vendor, domain, category, VT report URL)
+- AI-powered (опционально): toggle в Settings, ключ Anthropic API, Claude Haiku для генерации персонализированного письма
 
-```typescript
-function generateDisputeText(vendor: string, domain: string): string
-// "Dear [Vendor] team,
-//  The domain [domain] has been incorrectly flagged as [category].
-//  This is a false positive. The domain is a legitimate website...
-//  Please review and remove the listing.
-//  VT report: https://www.virustotal.com/gui/domain/[domain]"
-```
+### Dispute Tracking
 
-### UX-флоу
+Lightweight, в `storage.local`:
+- Per-vendor иконки статуса: `○ Not disputed` / `◔ Disputed` / `● Resolved`
+- Сохраняется рядом с DomainRecord (не отдельная таблица)
 
-1. Watchlist / Current Site показывает домен с malicious/suspicious статусом
-2. Рядом со статусом появляется кнопка **«Dispute →»**
-3. Клик → открывается drawer с карточками вендоров
-4. Каждая карточка:
-   - Название вендора + его вердикт (Phishing, Malware, etc.)
-   - **«Open dispute form ↗»** — открывает URL вендора в новой вкладке
-   - **«Copy template ⎘»** — копирует готовый текст обращения в буфер
-5. Footer: кнопка **«Request VT rescan»** → `POST /domains/{domain}/analyse`
-
-### Файлы для реализации
+### Файлы
 
 ```
 src/shared/
-  vendors.ts                    # vendor name → dispute URL mapping
-  dispute-templates.ts          # template text generator
-  types/index.ts                # +VtVendorResult, VendorInfo
+  vendors.ts                    # vendor → dispute URL / email
+  dispute-templates.ts          # template generator (static + AI)
+  types/index.ts                # +VtVendorResult, VendorInfo, DisputeStatus
 
 src/entrypoints/sidepanel/
   components/
-    dispute-drawer.ts           # createDisputeDrawer() factory
+    dispute-drawer.ts           # createDisputeDrawer() — uses drawer shell
   main.ts                       # +Dispute button в карточках
-
-src/assets/css/
-  components.css                # +drawer styles (slide-in, overlay, cards)
-```
-
-### Drawer CSS (из redirect-inspector)
-
-```css
-.drawer { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
-.drawer__overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
-.drawer__panel { max-width: 560px; animation: drawerSlideIn 200ms ease-out; }
-@keyframes drawerSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-```
-
-### DOM-хелпер (из redirect-inspector)
-
-```typescript
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string)
 ```
 
 ---
@@ -156,7 +174,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 ## v2.1 — Rescan API
 
 - [ ] `POST /api/v3/domains/{domain}/analyse` — запрос переобхода VT
-- [ ] Кнопка «Request rescan» в drawer и в Current Site (для stale data)
+- [ ] Кнопка «Request rescan» в dispute drawer и в Current Site (для stale data)
 - [ ] Cooldown: не чаще 1 ресканирования в 24 часа на домен
 - [ ] Отдельный бюджет: rescan не считается в основные 500 req/day
 
@@ -164,10 +182,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 
 ## v2.2 — Vendor Intelligence
 
-- [ ] Обогащение vendor database: 50+ вендоров с dispute URLs
-- [ ] Авто-определение типа формы (email / web form / API)
-- [ ] Трекинг: какие вендоры уже оспорены (localStorage)
+- [ ] Обогащение vendor database: 50+ веб-форм + 50+ email-контактов
+- [ ] Авто-определение типа формы (email / web form)
 - [ ] Прогресс-бар: «3 of 5 vendors disputed»
+- [ ] AI dispute text generation (Anthropic API, Claude Haiku)
 
 ---
 
@@ -175,7 +193,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 
 - [ ] Push-уведомления при изменении статуса домена
 - [ ] История статусов: таймлайн изменений
-- [ ] Экспорт/импорт watchlist (JSON)
+- [ ] Экспорт/импорт доменов и списков (JSON)
 - [ ] Локализация: ru, uk, tr, es, de, fr
 
 ---
@@ -196,12 +214,13 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 - Dashboard с графиками репутации
 - Интеграция с Google Search Console (site verification)
 - Платный tier с премиум VT ключом
+- Many-to-many list memberships (домен в нескольких списках)
 
 ---
 
 ## Next in Line — DMCA Abuse Monitor
 
-Отдельное расширение в линейке, тот же стек (WXT + vanilla DOM), та же архитектура watchlist + drawer.
+Отдельное расширение в линейке, тот же стек (WXT + vanilla DOM), та же архитектура.
 
 **Суть:** мониторинг DMCA-злоупотреблений против доменов вебмастера.
 
@@ -222,5 +241,5 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 - Скелет проекта, WXT config, тема, i18n, messaging protocol
 - Side panel layout (tabs, domain cards, settings)
 - Welcome wizard (API key → first domain)
-- Drawer pattern (из v2.0)
+- Drawer shell + components (из v1.5)
 - Budget/throttle механика (адаптировать под Lumen API limits)
