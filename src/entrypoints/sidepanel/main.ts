@@ -6,7 +6,7 @@ import {
   getDomains, getApiKey, saveApiKey, getApiUsage,
   getCheckInterval, saveCheckInterval,
 } from '@shared/db';
-import { normalizeDomainInput, extractDomain } from '@shared/domain-utils';
+import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
 import type { DomainRecord, DomainStatus, CheckInterval } from '@shared/types';
@@ -99,7 +99,9 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
 
     const name = document.createElement('div');
     name.className = 'domain-card__name';
-    name.textContent = record.domain;
+    const unicode = toUnicode(record.domain);
+    name.textContent = unicode;
+    if (unicode !== record.domain) name.title = record.domain;
 
     const meta = document.createElement('div');
     meta.className = 'domain-card__meta';
@@ -181,7 +183,9 @@ async function renderCurrentSite(): Promise<void> {
     header.appendChild(dot);
   }
   const domainText = document.createElement('span');
-  domainText.textContent = domain;
+  const domainUnicode = toUnicode(domain);
+  domainText.textContent = domainUnicode;
+  if (domainUnicode !== domain) domainText.title = domain;
   header.appendChild(domainText);
   container.appendChild(header);
 
