@@ -1,180 +1,251 @@
-# VirusTotal Domain Monitor
+# VT Domain Monitor
+
+## Overview
+
+WXT + TypeScript browser extension for Chrome, Firefox, and Edge.
+It monitors domain reputation via the VirusTotal API: watchlist with scheduled background checks plus a badge for the active tab's domain.
+This is a developer tool for webmasters, not a consumer antivirus.
 
 ## Current State
-- WXT project scaffold is in place: `wxt.config.ts`, `package.json` (with dev/build/zip scripts), `tsconfig.json`, `eslint.config.mjs`.
-- Dependencies installed (`node_modules/`), git initialized.
-- No `src/` directory yet — no entrypoints, shared modules, CSS, or icons.
-- Product spec is in `SPEC.md` (draft, under review).
-- Implementation has not started. When it does, create `src/` from scratch following the planned structure below.
 
-## Product Positioning
-- Browser extension for webmasters to monitor domain reputation via VirusTotal API.
-- Target browsers for v1: Chrome, Firefox, Edge.
-- Chrome Web Store category: Developer Tools.
-- This is not an antivirus, blocker, navigation warning system, or mass-market security product.
+- v1.0 is implemented and builds successfully for Chrome, Firefox, and Edge.
+- Real code exists in `src/`; do not treat this repo as scaffold-only.
+- Main entrypoints today:
+  - `background.ts`
+  - `welcome/`
+  - `sidepanel/`
+- There is no separate `popup/` entrypoint.
+- Firefox popup fallback reuses `sidepanel.html` in compact mode.
+- `ROADMAP.md` contains future work and proposals.
+- `SPEC.md` remains the v1 product contract.
+- If `SPEC.md`, `ROADMAP.md`, and the current code disagree, call out the mismatch explicitly and update docs before coding around it.
 
 ## Source Of Truth
-- `SPEC.md` is the main product spec and discussion log.
-- `AGENTS.md` is the working contract for coding agents: repo reality, implementation defaults, and decision rules.
-- `CLAUDE.md` is the concise technical reference auto-loaded into every conversation context.
-- `W:\Projects\fastweb` is the primary architecture/style reference for WXT structure, messaging, CSS tokens, and sidebar handling.
-- If `SPEC.md` and the actual repo state differ, do not paper over the mismatch. Call it out and update docs before coding around it.
 
-## How To Work In This Repo
-- Treat the project as spec-first until real code exists.
-- Prefer clarifying product and architecture decisions before generating large amounts of code.
-- Separate accepted decisions from open questions.
-- When a product decision is finalized, update `SPEC.md`.
-- Update `AGENTS.md` only when the decision changes implementation rules, defaults, or agent workflow.
-- When the spec contains contradictory guidance, do not silently pick a side. Raise it during discussion or record the chosen resolution explicitly.
+- `SPEC.md` - accepted v1 product behavior and guardrails
+- `ROADMAP.md` - planned work and discussion proposals beyond v1
+- `AGENTS.md` - current implementation contract for coding agents
+- `CLAUDE.md` - short technical snapshot auto-loaded into agent context
+- `W:\Projects\fastweb` - reference for WXT structure, CSS system, messaging, and sidepanel patterns
 
-## Stack
+## Tech Stack
+
 - WXT `^0.19`
 - TypeScript `^5.7` with `strict: true`
-- ESLint `^9` + `typescript-eslint`
+- ESLint `^9`
 - Vanilla DOM UI only
-- No `any`
-- No runtime dependencies unless clearly justified
-- Use `browser.*` APIs via WXT polyfills
+- No runtime dependencies
+- `browser.*` APIs via WXT where possible
+- `chrome.*` callback storage access is currently used inside low-level helpers
 - Path aliases:
-  - `@shared/` -> `src/shared/`
   - `@/` -> `src/`
+  - `@shared/` -> `src/shared/`
 
-## Planned Project Structure
-Target structure after implementation starts:
+## Current Project Structure
 
 ```text
 src/
   entrypoints/
     background.ts
-    welcome/
-      index.html
-      main.ts
     sidepanel/
       index.html
       main.ts
+    welcome/
+      index.html
+      main.ts
   shared/
-    types/index.ts
-    constants.ts
-    vt-client.ts
-    queue.ts
-    db.ts
-    badge.ts
     alarm.ts
+    badge.ts
+    constants.ts
+    db.ts
+    domain-utils.ts
+    i18n.ts
+    queue.ts
     theme.ts
+    vt-client.ts
     messaging/
       index.ts
       protocol.ts
+    types/
+      index.ts
   assets/css/
-    theme.css
     components.css
+    theme.css
   public/
     icons/
+    _locales/en/messages.json
 ```
 
-By default, do not create a separate `popup/` entrypoint. Reuse `sidepanel/` in a compact popup mode for Firefox fallback if needed.
+## Key Commands
 
-## Storage Defaults
-- Use `browser.storage.local` for domain records.
-- Use `browser.storage.sync` for user settings.
-- Planned keys:
-  - `storage.local`
-    - `domains`: `Record<string, DomainRecord>`
-  - `storage.sync`
-    - `vt_api_key`
-    - `check_interval_hours`
-    - `theme`
-- Keep watchlist domain records in `local`, not `sync`, unless the user explicitly changes this product decision.
+- `npm run dev`
+- `npm run dev:firefox`
+- `npm run dev:edge`
+- `npm run build`
+- `npm run build:firefox`
+- `npm run build:edge`
+- `npm run zip:all`
+- `npm run typecheck`
+- `npm run lint`
+- `npm run check`
 
-## VirusTotal Rules
-- v1 uses only `GET https://www.virustotal.com/api/v3/domains/{domain}`.
-- Authenticate with `x-apikey`.
-- Respect free-tier limits:
-  - 4 requests/minute
-  - 500 requests/day
-- Default throttle strategy: one request every 15 seconds.
-- Use `data.attributes.last_analysis_stats` as the basis for computed status.
-- Status priority should remain:
-  - `malicious`
-  - `suspicious`
-  - `clean`
-  - `unknown`
-  - `pending`
+## Storage
 
-## Architecture Defaults
-- The background service worker owns:
-  - VT request queue
-  - alarm scheduling
-  - badge updates
-  - typed message handling
-- UI contexts should react to storage changes instead of maintaining duplicated source-of-truth state where possible.
-- Typed messaging belongs in `src/shared/messaging/protocol.ts`.
-- Theme behavior belongs in shared utilities plus CSS custom properties.
-- MV3 service workers are ephemeral. An in-memory queue is acceptable as a transient worker buffer, but correctness must be reconstructible from storage plus alarms.
+### `chrome.storage.local`
+
+- `domains` -> `Record<string, DomainRecord>`
+- `api_usage` -> `{ count: number, date: string }`
+
+### `chrome.storage.sync`
+
+- `vt_api_key`
+- `check_interval_hours`
+- `theme`
+
+## Domain Model
+
+```ts
+interface DomainRecord {
+  domain: string;
+  watchlist: boolean;
+  added_at: number;
+  last_checked: number;
+  vt_last_analysis_date: number | null;
+  vt_stats: {
+    malicious: number;
+    suspicious: number;
+    harmless: number;
+    undetected: number;
+  } | null;
+  status: 'clean' | 'suspicious' | 'malicious' | 'unknown' | 'pending';
+}
+```
+
+Notes:
+
+- `watchlist: true` -> schedule-driven monitoring
+- `watchlist: false` -> ad-hoc cache for visited domains
+- `stale` is not stored; it is a rendering overlay derived from `vt_last_analysis_date`
+- `Remove` currently deletes the record, not demotes it
+
+## Current Product Behavior
+
+- Badge exists for supported active-tab domains
+- Watchlist domains auto-refresh on schedule
+- Ad-hoc domains are checked on first visit if budget allows
+- Ad-hoc results are cached and not auto-refreshed
+- Ad-hoc cooldown is 7 days
+- `stale` means VT data older than 30 days; badge becomes gray `?`, but underlying verdict remains visible in UI
+- Current UI surfaces:
+  - Watchlist
+  - Current Site
+  - Settings
+- Welcome flow:
+  - intro
+  - verify API key
+  - add first domain
+  - open side panel
+
+## Queue, Budget, and Retry Rules
+
+- Queue is in-memory in the background worker
+- Queue priorities:
+  - `high` - explicit user actions
+  - `normal` - watchlist scheduled refresh
+  - `low` - ad-hoc first-visit checks
+- Queue dedupe: never enqueue a domain already in queue
+- Throttle: `15s` between requests
+- Budget model:
+  - watchlist reserve: `400`
+  - ad-hoc blocked at `>= 400`
+  - normal blocked at `>= 480`
+  - hard daily maximum tracked against `500`
+- `tickWatchlist()` must account for queued backlog, not only completed usage
+- `429 rate_limited` must not retry forever:
+  - bounded retry count
+  - stop queue when daily quota is exhausted
+- Storage helpers serialize `domains` and `api_usage` updates to avoid lost writes
+
+## Badge Semantics
+
+| Status | Color | Text |
+|---|---|---|
+| clean | `#22c55e` | `✓` |
+| suspicious | `#f59e0b` | `!` |
+| malicious | `#ef4444` | `✗` |
+| unknown | `#6b7280` | `?` |
+| pending | `#3b82f6` | `…` |
+| stale overlay | `#6b7280` | `?` |
+
+## Domain Normalization
+
+- Lowercase
+- Strip `www.`
+- Ignore unsupported protocols:
+  - `chrome:`
+  - `chrome-extension:`
+  - `edge:`
+  - `about:`
+  - `moz-extension:`
+  - `file:`
+  - `data:`
+  - `blob:`
+- Ignore IPs and `localhost`
+- Only `http:` / `https:`
+- Keep hostnames, not full URLs
+- `normalizeDomainInput()` accepts either bare domains or URLs
 
 ## Browser-Specific Rules
-- Chrome/Edge:
-  - use `sidePanel`
-  - toolbar click should open the side panel
-  - no consumer-style default popup
-- Firefox:
-  - use the sidepanel UI as the primary surface
-  - if popup fallback is needed, reuse the same sidepanel UI in a compact mode instead of creating a separate popup product
-  - a mode flag such as `#sidebar`, `?popup=1`, or equivalent is acceptable to distinguish contexts
-- Keep permissions narrow:
-  - `storage`
-  - `alarms`
-  - `tabs`
-  - `activeTab`
-  - `sidePanel` only where supported
-- Keep host permissions limited to `https://www.virustotal.com/*`.
-- Do not add `webRequest`, `declarativeNetRequest`, or `<all_urls>`.
 
-## Product Defaults For v1
-- Watchlist is the core feature.
-- Badge is a compact status indicator, not a fear-based warning UI.
-- Background checks are schedule-driven and watchlist-driven.
-- No blocking, interception, or navigation warnings.
-- No backend/proxy, notifications bot, history tracking, multiple API keys, URL scanning, or import/export in v1.
-- Reuse FastWeb patterns where they fit, but do not copy unrelated product behavior.
+### Chrome / Edge
 
-## Accepted Decisions
+- Use `sidePanel`
+- Toolbar click opens the side panel
+- No default popup
+- Manifest hook rewrites side panel path to `sidepanel.html#sidebar`
 
-- Domain records in `storage.local`; settings in `storage.sync`.
-- Chrome/Edge: icon click → `sidePanel.open()`, no popup.
-- Firefox: `action.default_popup: 'sidepanel.html'` (compact mode), `sidebar_action.default_panel: 'sidepanel.html#sidebar'` (full mode). Mode detected via `location.hash.includes('sidebar')`.
-- No separate `popup/` entrypoint.
-- Badge for ALL domains with budget guard:
-  - Watchlist (`watchlist: true`): auto-refresh on schedule, priority `normal`.
-  - Ad-hoc (`watchlist: false`): checked on first visit, cached, no auto-refresh, priority `low`.
-  - Budget: ad-hoc blocked at 400 req/day, all non-explicit at 480.
-  - Queue dedup: never queue a domain already in queue.
-  - Ad-hoc cooldown: skip if `last_checked` < 7 days.
-- `stale` is a rendering overlay, not a stored status. Computed from `vt_last_analysis_date > 30 days` → gray badge. Underlying verdict preserved in UI detail view.
-- DomainRecord lifecycle: Add → Promote (ad-hoc → watchlist) → Remove = delete record.
-- Domain normalization: lowercase, strip `www.`, skip chrome://, about:, IPs, localhost. IDN → punycode.
-- API usage counter (`api_usage` in `storage.local`), shown in Settings.
-- Store name: VirusTotal Domain Monitor.
-- i18n-ready (`data-i18n` + `_locales/en`), no translations in v1.
+### Firefox
 
-## Build Order
-1. Create shared types, constants, storage helpers, VT client, queue, alarm helpers, badge logic, theme helpers, and messaging protocol.
-2. Implement `background.ts`.
-3. Add shared CSS tokens/components.
-4. Implement the welcome flow.
-5. Implement the side panel.
-6. Add compact Firefox popup fallback behavior inside the sidepanel UI if needed.
-7. Add icons and store-facing metadata.
-8. Run typecheck, lint, and browser builds before polish work.
+- Primary full UI: `sidebar_action.default_panel = sidepanel.html#sidebar`
+- Popup fallback: `action.default_popup = sidepanel.html`
+- Mode detection uses `location.hash.includes('sidebar')`
+
+## UI And Messaging Conventions
+
+- Typed messaging lives in `src/shared/messaging/protocol.ts`
+- Current message types:
+  - `CHECK_DOMAIN`
+  - `ADD_DOMAIN`
+  - `REMOVE_DOMAIN`
+  - `CHECK_ALL`
+  - `VERIFY_KEY`
+  - `GET_QUEUE_STATUS`
+  - `OPEN_SIDEPANEL`
+- Theme uses CSS custom properties plus `data-theme`
+- i18n is `_locales/en` + `src/shared/i18n.ts`
+- Sidepanel reacts to storage changes and re-renders from storage-backed state
+
+## When Changing The Product
+
+- Update `SPEC.md` when accepted product behavior changes
+- Update `ROADMAP.md` for sequencing, future work, or proposals
+- Update `AGENTS.md` and `CLAUDE.md` after structural or behavioral changes that affect day-to-day coding decisions
+- Do not leave agent docs describing a pre-implementation repo after code structure changes
 
 ## Do Not Do
-- Do not present the extension as antivirus software.
-- Do not widen permissions without a product reason and explicit review.
-- Do not silently introduce backend dependencies or runtime packages.
-- Do not assume the planned file tree already exists.
-- Do not resolve spec contradictions by guesswork.
+
+- Do not present the extension as antivirus software
+- Do not add backend dependencies or runtime packages without explicit justification
+- Do not widen permissions without review
+- Do not add `webRequest`, `declarativeNetRequest`, or broad host permissions
+- Do not create a separate popup product without an explicit product decision
+- Do not silently replace hostname-based behavior with registrable-domain-only behavior
+- Do not resolve spec/roadmap/code contradictions by guesswork
 
 ## File Ownership
-- `CLAUDE.md` and the `memory/` directory are owned by Claude Code (the primary agent). No other agent or tool may read, write, or modify these files. They are out of scope for any sub-agent, linter hook, or automated rewrite.
-- `AGENTS.md` is the shared contract. Changes to it require explicit user approval.
-- `SPEC.md` is the product spec. Any agent may read it; modifications require user approval.
+
+- `AGENTS.md` is the shared agent contract
+- `CLAUDE.md` is the concise technical reference
+- `SPEC.md` is the product spec
+- `ROADMAP.md` is the sequencing and proposal document
+- Changes to any of these docs should be deliberate and user-visible

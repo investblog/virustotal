@@ -1,245 +1,303 @@
-# VirusTotal Domain Monitor — Roadmap
+# VirusTotal Domain Monitor - Roadmap
 
 ---
 
-## v1.0 — MVP (current)
+## v1.0 - MVP (current)
 
 Базовый мониторинг доменов через VT API.
 
 - [x] Watchlist доменов с авто-проверкой по расписанию
-- [x] Badge для всех сайтов (с budget guard)
+- [x] Badge для всех сайтов с budget guard
 - [x] Side panel: Watchlist / Current Site / Settings
-- [x] Welcome wizard (API key + первый домен)
-- [x] Stale data overlay (серый badge при VT scan > 30 дней)
-- [x] Compact popup mode для Firefox
+- [x] Welcome wizard: API key + первый домен
+- [x] Stale data overlay при VT scan старше 30 дней
+- [x] Compact popup mode для Firefox через тот же `sidepanel.html`
 - [x] Тема dark / light / auto
 - [x] i18n-ready (English)
 
 ---
 
-## v1.1 — Polish
+## v1.1 - Polish
 
 Фиксы и улучшения по результатам ручного тестирования MVP.
 
-- [ ] Валидация домена в UI с визуальным фидбэком (красная рамка, tooltip)
-- [ ] Пустой стейт для Current Site при отсутствии ключа (CTA на setup)
+- [ ] Валидация домена в UI с визуальным фидбэком
+- [ ] Пустой state для Current Site при отсутствии API key
 - [ ] Loading-спиннер при проверке домена
-- [ ] Relative time auto-refresh (обновлять «2h ago» без перезагрузки)
+- [ ] Relative time auto-refresh без перезагрузки
 - [ ] Keyboard shortcut для открытия side panel
-- [ ] Edge билд + тестирование
+- [ ] Edge smoke test и store-ready проверка
 
 ---
 
-## v1.5 — Drawer Shell + Bulk Add
+## v1.5 - Drawer Shell + Bulk Add
 
-Drawer как **общий UI-механизм** side panel. Первое применение — Bulk Add.
-Это инвестиция: drawer shell переиспользуется в v2.0 (Dispute) и далее.
+Статус: proposal for discussion.
+
+Drawer нужен как общий UI-механизм side panel. Первое применение - Bulk Add.
+Это инвестиция в общий shell, который потом переиспользуется в v2.0 для dispute flow.
 
 ### Drawer shell
 
-Общий компонент слайд-ин панели (паттерн redirect-inspector):
-- `src/entrypoints/sidepanel/components/drawer.ts` — `createDrawer(title, onClose): { aside, body, footer }`
-- `src/assets/css/components.css` — `.drawer`, `.drawer__overlay`, `.drawer__panel`, `.drawer__header`, `.drawer__body`, `.drawer__footer`
-- DOM-хелпер `el(tag, cls?, text?)` в `src/shared/ui-helpers.ts`
-- Slide-in animation, overlay click to close, close button
+Общий компонент slide-in панели:
 
-### Bulk Add Drawer
+- `src/entrypoints/sidepanel/components/drawer.ts` - `createDrawer(title, onClose): { aside, body, footer }`
+- `src/assets/css/components.css` - `.drawer`, `.drawer__overlay`, `.drawer__panel`, `.drawer__header`, `.drawer__body`, `.drawer__footer`
+- `src/shared/ui-helpers.ts` - DOM helper `el(tag, cls?, text?)`
+- Slide-in animation, overlay click to close, close button, focus return
 
-- Кнопка «Bulk add» в Watchlist → открывает drawer
-- Textarea для вставки доменов / URL / произвольного текста
-- Live count найденных доменов + preflight:
-  - valid / duplicate / already in watchlist / invalid
-- Action: `Add only` или `Add + check now`
-- Estimate: `Estimated API cost: N requests`
-- Парсер доменов: переиспользовать подход из cloudflare-tools
+### Bulk Add drawer
+
+- Кнопка `Bulk add` в Watchlist/ Domains открывает drawer
+- Textarea для вставки доменов, URL и произвольного текста
+- Live count найденных доменов + preflight summary:
+  - `valid`
+  - `duplicate`
+  - `already in watchlist`
+  - `already in list`
+  - `invalid`
+- Actions:
+  - `Add only`
+  - `Add + check now`
+- Estimate перед запуском: `Estimated API cost: N requests`
+- Парсер доменов: переиспользовать подход из `cloudflare-tools`
 
 ### IDN policy
 
 - Storage и API: ASCII / punycode
-- UI: Unicode отображение
-- Поиск: матч по обеим репрезентациям
-- Ref: `W:\Projects\cloudflare-tools\src\shared\domains\idn.ts`
+- UI: Unicode display
+- Поиск: матч по Unicode и punycode
+
+### Batch budget policy
+
+Bulk-операции не должны ломать текущую budget model.
+
+- `Add only` не тратит VT quota
+- `Add + check now` и будущие batch checks работают только после явного подтверждения estimate
+- За один batch по умолчанию проверяем не больше 20 доменов
+- Batch checks останавливаются до пересечения watchlist reserve:
+  - не расходуют reserved budget после `requests_today >= 400`
+  - не queue-ятся за hard cap `480`
+- Одиночный `Check now` для конкретного домена остаётся отдельным explicit action и не меняет текущую модель
+
+### References
+
+- `W:\Projects\cloudflare-tools\src\shared\domains\idn.ts`
+- `W:\Projects\cloudflare-tools\src\shared\domains\parser.ts`
+- `W:\Projects\cloudflare-tools\src\entrypoints\sidepanel\main.ts`
 
 ---
 
-## v1.6 — Research Lists
+## v1.6 - Research Lists
 
-Эволюция Watchlist → Domains с поддержкой именованных списков.
+Статус: proposal for discussion.
 
-### Модель
+Эволюция Watchlist -> Domains с поддержкой research lists для due diligence перед покупкой доменов.
 
-Текущий `watchlist: boolean` → `list_id: string` (default `'watchlist'`):
-- `DomainRecord` остаётся VT cache по домену (один на домен)
-- Добавляется `list_id` — к какому списку принадлежит
-- `'watchlist'` — авто-проверка по расписанию
-- Любой другой list_id — research, manual check only
+### Model
 
-> Many-to-many (ListMembership) — отложено до реальной потребности.
-> Пока one domain = one list. Promote из research в watchlist = смена list_id.
+`DomainRecord` остаётся единым VT cache по домену. Принадлежность к спискам хранится отдельно.
+
+- `DomainRecord`
+  - один cache row на домен
+  - может существовать без membership вообще, если это ad-hoc cache
+- `ListRecord`
+  - встроенный `watchlist`
+  - пользовательские research lists: `Auction Batch A`, `Expired .com`, и т.п.
+- `ListMembership`
+  - отдельная связь `domain <-> list`
+  - модель поддерживает multiple memberships с первого релиза списков
+  - UI может начать с простых действий, но storage не должен кодировать membership в `DomainRecord`
+
+Итог:
+
+- Watchlist membership = домен участвует в schedule-driven checks
+- Research membership = домен виден в соответствующем списке, но не участвует в auto-check по умолчанию
+- Ad-hoc cache остаётся возможным без добавления домена ни в один list
 
 ### UI
 
-- Таб Watchlist переименовывается в **Domains**
-- Dropdown сверху для выбора списка: `Watchlist`, `Auction Batch A`, etc.
-- `New list` / `Rename` / `Delete list`
-- `Check selected` / `Check unchecked` / `Check first 20` — manual batch actions
-- Domains из research lists не участвуют в авто-проверках и ad-hoc badge
+- Текущий tab `Watchlist` эволюционирует в `Domains`
+- List switcher сверху: `Watchlist`, `Auction Batch A`, `Brandables`, и т.д.
+- Actions:
+  - `New list`
+  - `Rename`
+  - `Delete list`
+  - `Check selected`
+  - `Check unchecked`
+  - `Check first 20`
+- Из research list можно явно:
+  - `Add to watchlist`
+  - `Remove from list`
+- Domains из research lists не попадают в schedule-driven auto-check и не участвуют в badge ad-hoc логике только потому, что они в research list
 
-### Квота
+### Quota
 
-- Research lists: zero auto-check cost
-- Bulk check: только по явному действию + обязательный estimate перед запуском
-- Budget model не меняется (400 watchlist / 100 ad-hoc / 480 cap)
+- Research lists по умолчанию стоят `manual-only`
+- Любой batch check использует ту же batch budget policy, что и v1.5
+- Watchlist reserve остаётся защищённым
+- Перед запуском batch user видит estimate и upper bound по числу запросов
 
-### Поддомены
+### Subdomains
 
-- По умолчанию: registrable domain only (strip subdomain)
-- Checkbox «Include subdomains» в Bulk Add drawer для продвинутых
+По умолчанию bulk import должен сохранять введённый hostname как есть.
+
+- Default: preserve hostname (`shop.example.com` остаётся `shop.example.com`)
+- Optional import mode: `Collapse to registrable domain`
+- `www.` по-прежнему нормализуется как сейчас
+
+### Search
+
+- Локальный поиск без сети
+- Матч по:
+  - domain
+  - punycode / Unicode form
+  - notes
+  - status
+  - stale / unchecked filters
 
 ---
 
-## v2.0 — False Positive Resolution
+## v2.0 - False Positive Resolution
 
-**Ключевая фича:** помочь вебмастеру оспорить false positive.
+Ключевая фича: помочь вебмастеру оспорить false positive.
 
 ### VT API
 
-Расширить `vt-client.ts`: парсить `last_analysis_results` — per-vendor вердикты:
+Расширить `vt-client.ts`: парсить `last_analysis_results` с per-vendor verdicts.
 
-```typescript
+```ts
 interface VtVendorResult {
   vendor: string;
   category: 'malicious' | 'suspicious' | 'harmless' | 'undetected';
-  result: string;       // "Phishing", "Malware", etc.
+  result: string;
 }
 ```
 
-### Dispute Drawer
+### Dispute drawer
 
 Переиспользует drawer shell из v1.5:
 
-```
-drawer header:  "example.com — flagged by 3 vendors"  [×]
+```text
+drawer header: "example.com - flagged by 3 vendors" [x]
 drawer body:
-  ┌─ Vendor Card ──────────────────────┐
-  │  🔴 Kaspersky — "Phishing"         │
-  │  [Open dispute form ↗]             │
-  │  [Copy template ⎘]                │
-  │  Status: ○ Not disputed            │
-  └────────────────────────────────────┘
-  ...
+  Vendor card
+    Kaspersky - "Phishing"
+    [Open dispute form]
+    [Copy template]
+    Status: Not disputed
 drawer footer:
   "After vendors remove flags, request a VT rescan."
   [Request rescan]
 ```
 
-### Vendor Database
+### Vendor database
 
-`src/shared/vendors.ts` — 100+ вендоров из VT docs + False-Positive-Center:
-- Вендоры с веб-формами: прямая ссылка «Open dispute form ↗»
-- Вендоры только с email: `mailto:` ссылка + «Copy template ⎘»
+`src/shared/vendors.ts` - vendor -> dispute URL / email.
 
 Источники:
-- https://docs.virustotal.com/docs/false-positive-contacts
-- https://github.com/yaronelh/False-Positive-Center
 
-### Шаблоны обращений
+- [VirusTotal false positive contacts](https://docs.virustotal.com/docs/false-positive-contacts)
+- [False-Positive-Center](https://github.com/yaronelh/False-Positive-Center)
 
-`src/shared/dispute-templates.ts`:
-- Базовый: подстановка переменных (vendor, domain, category, VT report URL)
-- AI-powered (опционально): toggle в Settings, ключ Anthropic API, Claude Haiku для генерации персонализированного письма
+### Dispute templates
 
-### Dispute Tracking
+`src/shared/dispute-templates.ts`
 
-Lightweight, в `storage.local`:
-- Per-vendor иконки статуса: `○ Not disputed` / `◔ Disputed` / `● Resolved`
-- Сохраняется рядом с DomainRecord (не отдельная таблица)
+- Базовые шаблоны с подстановкой переменных
+- Статический copy-first режим без внешнего AI
 
-### Файлы
+AI-генерация текста переносится в v2.2, чтобы не смешивать первый dispute release с настройками стороннего LLM API, privacy review и дополнительной интеграцией.
 
-```
-src/shared/
-  vendors.ts                    # vendor → dispute URL / email
-  dispute-templates.ts          # template generator (static + AI)
-  types/index.ts                # +VtVendorResult, VendorInfo, DisputeStatus
+### Dispute tracking
 
-src/entrypoints/sidepanel/
-  components/
-    dispute-drawer.ts           # createDisputeDrawer() — uses drawer shell
-  main.ts                       # +Dispute button в карточках
-```
+Lightweight tracking в `storage.local`:
+
+- `Not disputed`
+- `Disputed`
+- `Resolved`
+
+Хранится рядом с доменом, без отдельной сложной таблицы на первом этапе.
 
 ---
 
-## v2.1 — Rescan API
+## v2.1 - Rescan API
 
-- [ ] `POST /api/v3/domains/{domain}/analyse` — запрос переобхода VT
-- [ ] Кнопка «Request rescan» в dispute drawer и в Current Site (для stale data)
-- [ ] Cooldown: не чаще 1 ресканирования в 24 часа на домен
-- [ ] Отдельный бюджет: rescan не считается в основные 500 req/day
-
----
-
-## v2.2 — Vendor Intelligence
-
-- [ ] Обогащение vendor database: 50+ веб-форм + 50+ email-контактов
-- [ ] Авто-определение типа формы (email / web form)
-- [ ] Прогресс-бар: «3 of 5 vendors disputed»
-- [ ] AI dispute text generation (Anthropic API, Claude Haiku)
+- [ ] `POST /api/v3/domains/{domain}/analyse`
+- [ ] Кнопка `Request rescan` в dispute drawer и в Current Site
+- [ ] Cooldown: не чаще одного rescаn в 24 часа на домен
+- [ ] Отдельный бюджет для rescan, не смешанный с основным daily counter
 
 ---
 
-## v3.0 — Notifications & History
+## v2.2 - Vendor Intelligence + AI Assist
+
+- [ ] Обогащение vendor database: web forms + email contacts
+- [ ] Авто-определение типа vendor flow: email / web form
+- [ ] Progress bar: `3 of 5 vendors disputed`
+- [ ] AI dispute text generation:
+  - Anthropic API
+  - Claude Haiku
+  - explicit opt-in в Settings
+  - отдельный privacy / copy review
+
+---
+
+## v3.0 - Notifications & History
 
 - [ ] Push-уведомления при изменении статуса домена
-- [ ] История статусов: таймлайн изменений
-- [ ] Экспорт/импорт доменов и списков (JSON)
-- [ ] Локализация: ru, uk, tr, es, de, fr
+- [ ] История статусов: timeline изменений
+- [ ] Export / import доменов и списков
+- [ ] Localization: ru, uk, tr, es, de, fr
 
 ---
 
-## v3.1 — URL Scanning
+## v3.1 - URL Scanning
 
-- [ ] Проверка конкретных URL (не только доменов)
+- [ ] Проверка конкретных URL, не только доменов
 - [ ] `POST /api/v3/urls` + `GET /api/v3/urls/{id}`
-- [ ] Деепскан: проверка всех URL на странице (content script)
+- [ ] Deep scan: проверка всех URL на странице через content script
 
 ---
 
 ## Backlog / Ideas
 
 - Telegram-бот для уведомлений
-- Свой бэкенд для агрегации (301.st API)
-- Множественные API-ключи (team mode)
+- Свой backend для агрегации
+- Multiple API keys / team mode
 - Dashboard с графиками репутации
-- Интеграция с Google Search Console (site verification)
-- Платный tier с премиум VT ключом
-- Many-to-many list memberships (домен в нескольких списках)
+- Интеграция с Google Search Console
+- Платный tier с premium VT key
+- List notes, tags and saved filters
 
 ---
 
-## Next in Line — DMCA Abuse Monitor
+## Next in Line - DMCA Abuse Monitor
 
-Отдельное расширение в линейке, тот же стек (WXT + vanilla DOM), та же архитектура.
+Отдельное расширение в линейке на том же стеке: WXT + vanilla DOM + похожая архитектура.
 
-**Суть:** мониторинг DMCA-злоупотреблений против доменов вебмастера.
+Суть: мониторинг DMCA-злоупотреблений против доменов вебмастера.
 
-**Источники данных:**
-- **Lumen Database** (`lumendatabase.org`) — API для поиска DMCA/cease & desist notices по домену
-- **Google Transparency Report** — публичные данные по DMCA takedown requests в поиске
-- **Google Search Console** — уведомления о removals (требует верификацию владельца)
+### Источники данных
 
-**Функциональность:**
-- Watchlist доменов (переносим паттерн)
-- Фоновый мониторинг Lumen API по расписанию
-- Badge/алерт: «На ваш домен подана DMCA жалоба»
-- Drawer с деталями жалобы: кто подал, на какой контент, дата
-- Counter-notice шаблон (+ AI-генерация через Anthropic API)
+- `lumendatabase.org`
+- Google Transparency Report
+- Google Search Console
+
+### Функциональность
+
+- Watchlist доменов
+- Фоновый мониторинг по расписанию
+- Badge / alert на наличие жалобы
+- Drawer с деталями жалобы
+- Counter-notice шаблоны
 - История жалоб по домену
 
-**Переносится из VT Monitor:**
-- Скелет проекта, WXT config, тема, i18n, messaging protocol
-- Side panel layout (tabs, domain cards, settings)
-- Welcome wizard (API key → first domain)
-- Drawer shell + components (из v1.5)
-- Budget/throttle механика (адаптировать под Lumen API limits)
+### Что переиспользуется из VT Monitor
+
+- WXT project skeleton
+- Theme / i18n / messaging protocol
+- Side panel layout
+- Welcome wizard
+- Drawer shell из v1.5
+- Budget / throttle patterns, адаптированные под лимиты нового источника

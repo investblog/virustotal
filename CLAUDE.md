@@ -1,56 +1,134 @@
 # VirusTotal Domain Monitor
 
-## Overview
-WXT + TypeScript browser extension (Chrome, Firefox, Edge). Monitors domain reputation via VirusTotal API — watchlist with scheduled background checks + badge indicator for the active tab's domain. Developer tool for webmasters, not a consumer antivirus.
+## Snapshot
 
-## Source Of Truth
-- `SPEC.md` — product spec and discussion log
-- `AGENTS.md` — full agent contract: implementation defaults, decision rules, guardrails
-- `W:\Projects\fastweb` — architecture/style reference (same stack, messaging, CSS tokens, sidebar handling)
+v1.0 is implemented.
+Current extension surfaces:
 
-## Current State
-WXT scaffold in place (wxt.config.ts, package.json, tsconfig, eslint). No `src/` yet — implementation not started. See `AGENTS.md` for build order.
+- `background.ts`
+- `welcome/`
+- `sidepanel/`
 
-## Tech Stack
-- **WXT** ^0.19, **TypeScript** ^5.7 strict, **ESLint** ^9
-- Vanilla DOM (no React/Vue), no runtime dependencies
-- `browser.*` APIs via WXT polyfills
-- Path aliases: `@/` → `src/`, `@shared/` → `src/shared/`
+There is no separate `popup/` entrypoint.
+Firefox popup fallback reuses `sidepanel.html`; full sidebar mode uses `sidepanel.html#sidebar`.
 
-## Key Commands
-- `npm run dev` / `dev:firefox` / `dev:edge` — dev build
-- `npm run build` / `build:firefox` / `build:edge` — production build
-- `npm run zip:all` — zip all browsers
-- `npm run check` — tsc + eslint
+## Stack
+
+- WXT `^0.19`
+- TypeScript `^5.7`, strict
+- ESLint `^9`
+- Vanilla DOM
+- No runtime dependencies
+- Aliases:
+  - `@/` -> `src/`
+  - `@shared/` -> `src/shared/`
+
+## Commands
+
+- `npm run dev`
+- `npm run dev:firefox`
+- `npm run dev:edge`
+- `npm run build`
+- `npm run build:firefox`
+- `npm run build:edge`
+- `npm run zip:all`
+- `npm run check`
+
+## Current Structure
+
+```text
+src/
+  entrypoints/
+    background.ts
+    sidepanel/
+    welcome/
+  shared/
+    alarm.ts
+    badge.ts
+    constants.ts
+    db.ts
+    domain-utils.ts
+    i18n.ts
+    queue.ts
+    theme.ts
+    vt-client.ts
+    messaging/
+    types/
+  assets/css/
+    components.css
+    theme.css
+  public/
+    icons/
+    _locales/en/messages.json
+```
 
 ## Storage
-- **`storage.local`**: `domains` → `Record<string, DomainRecord>` (watchlist + ad-hoc cache), `api_usage`
-- **`storage.sync`**: `vt_api_key`, `check_interval_hours`, `theme`
 
-## VT API
-```
-GET https://www.virustotal.com/api/v3/domains/{domain}
-x-apikey: {key}
-Rate: 4 req/min, 500 req/day → throttle 1 req/15s
-Response: data.attributes.last_analysis_stats → { malicious, suspicious, harmless, undetected }
-```
+- `storage.local`
+  - `domains`
+  - `api_usage`
+- `storage.sync`
+  - `vt_api_key`
+  - `check_interval_hours`
+  - `theme`
 
-## Badge
-| Status | Color | Text |
-|--------|-------|------|
-| clean | `#22c55e` | `✓` |
-| suspicious | `#f59e0b` | `!` |
-| malicious | `#ef4444` | `✗` |
-| unknown | `#6b7280` | `?` |
-| pending | `#3b82f6` | `…` |
+`DomainRecord` is still:
 
-Badge for ALL domains. `stale` is a rendering overlay (not stored status): `vt_last_analysis_date > 30d` → gray `?`. Ad-hoc cache on first visit, budget-gated (100 ad-hoc/day).
+- `domain`
+- `watchlist`
+- `added_at`
+- `last_checked`
+- `vt_last_analysis_date`
+- `vt_stats`
+- `status`
 
-## Key Conventions
-- Entrypoint scripts: `main.ts` inside directories
-- No separate `popup/` — sidepanel in compact mode for Firefox fallback
-- Typed messaging: `src/shared/messaging/protocol.ts`
-- Theme: CSS custom properties + `data-theme` attribute
-- Service worker queue is in-memory but reconstructible from storage + alarms
-- Permissions: `storage`, `alarms`, `tabs`, `activeTab`, `sidePanel` (Chrome/Edge only)
-- Host permissions: `https://www.virustotal.com/*` only
+`stale` is computed, not stored.
+
+## Behavior
+
+- Watchlist domains are checked on schedule
+- Badge exists for supported active-tab domains
+- Ad-hoc checks happen on first visit, are budget-gated, and cache results
+- Ad-hoc cooldown is 7 days
+- Status model: `clean | suspicious | malicious | unknown | pending`
+- Stale overlay: VT data older than 30 days renders as gray `?`
+
+## Budget / Queue
+
+- Watchlist reserve: `400`
+- Ad-hoc blocked at `>= 400`
+- Normal queue blocked at `>= 480`
+- Daily max tracked against `500`
+- Throttle: `15s`
+- Queue is in-memory, deduped, priority-ordered
+- `429` retry is bounded and stops when daily quota is exhausted
+- Storage writes for `domains` and `api_usage` are serialized in `db.ts`
+
+## Browser Behavior
+
+- Chrome / Edge:
+  - `sidePanel`
+  - icon click opens panel
+  - no popup
+- Firefox:
+  - sidebar is primary
+  - popup fallback uses same sidepanel UI
+  - mode detection via `location.hash.includes('sidebar')`
+
+## Messaging
+
+`src/shared/messaging/protocol.ts`
+
+- `CHECK_DOMAIN`
+- `ADD_DOMAIN`
+- `REMOVE_DOMAIN`
+- `CHECK_ALL`
+- `VERIFY_KEY`
+- `GET_QUEUE_STATUS`
+- `OPEN_SIDEPANEL`
+
+## Notes
+
+- `SPEC.md` is the v1 product contract
+- `ROADMAP.md` is for future work and proposals
+- Keep `AGENTS.md` and `CLAUDE.md` aligned with actual code after structural changes
