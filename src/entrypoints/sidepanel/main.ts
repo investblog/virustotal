@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import { applyI18n, _ } from '@shared/i18n';
-import { initTheme, toggleTheme } from '@shared/theme';
+import { initTheme, toggleTheme, getThemePreference } from '@shared/theme';
 import { sendMessage } from '@shared/messaging';
 import {
   getDomains, getApiKey, saveApiKey, getApiUsage,
@@ -354,6 +354,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes[STORAGE_KEYS.API_USAGE]) {
     void updateUsageDisplay();
   }
+  if (area === 'sync' && changes[STORAGE_KEYS.VT_API_KEY]) {
+    const keyInput = document.getElementById('settingsApiKey') as HTMLInputElement | null;
+    if (keyInput) keyInput.value = (changes[STORAGE_KEYS.VT_API_KEY].newValue || '') as string;
+  }
 });
 
 // --- Boot ---
@@ -375,7 +379,19 @@ void (async function boot(): Promise<void> {
   await initSettings();
 
   // Theme toggle
-  $('[data-action="toggle-theme"]')?.addEventListener('click', toggleTheme);
+  function updateThemeIcon(): void {
+    const icon = document.getElementById('themeIcon');
+    if (!icon) return;
+    const pref = getThemePreference();
+    const map = { dark: '#ico-moon', light: '#ico-sun', auto: '#ico-auto' };
+    icon.setAttribute('href', map[pref]);
+  }
+
+  updateThemeIcon();
+  $('[data-action="toggle-theme"]')?.addEventListener('click', () => {
+    toggleTheme();
+    updateThemeIcon();
+  });
 
   // Add domain form
   document.getElementById('btnAddDomain')?.addEventListener('click', () => {

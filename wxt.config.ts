@@ -17,6 +17,7 @@ export default defineConfig({
   manifest: ({ browser }) => ({
     name: 'VirusTotal Domain Monitor',
     description: 'Monitor domain reputation via VirusTotal API — watchlist with scheduled checks and badge indicator',
+    default_locale: 'en',
 
     permissions: (browser === 'firefox')
       ? ['storage', 'alarms', 'tabs', 'activeTab']

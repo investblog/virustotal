@@ -298,6 +298,7 @@ body {
   padding: var(--space-4);
 }
 .view { display: flex; flex-direction: column; gap: var(--space-4); }
+.view[hidden] { display: none; }
 
 /* === Domain form === */
 

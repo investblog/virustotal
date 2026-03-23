@@ -45,6 +45,8 @@ export function toggleTheme(): void {
 
 export function initTheme(): void {
   const pref = getThemePreference();
+  // Persist default so toggle cycle has a real starting point
+  try { localStorage.setItem(LS_KEY, pref); } catch { /* ignore */ }
   setTheme(pref === 'auto' ? null : pref);
 
   try {
