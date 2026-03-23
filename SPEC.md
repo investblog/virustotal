@@ -71,17 +71,23 @@ Header: x-apikey: {user_key}
 // Значение: Record<string, DomainRecord>
 
 interface DomainRecord {
-  domain: string;          // ключ
-  added_at: number;        // timestamp добавления
-  last_checked: number;    // timestamp последней проверки, 0 = не проверялся
+  domain: string;              // ключ
+  watchlist: boolean;          // true = в watchlist (авто-проверки), false = ad-hoc кеш
+  added_at: number;            // timestamp добавления
+  last_checked: number;        // timestamp нашей последней проверки, 0 = не проверялся
+  vt_last_analysis_date: number | null;  // timestamp последнего обхода VT (из ответа API)
   vt_stats: {
     malicious: number;
     suspicious: number;
     harmless: number;
     undetected: number;
   } | null;
-  status: 'clean' | 'suspicious' | 'malicious' | 'unknown' | 'pending';
+  status: 'clean' | 'suspicious' | 'malicious' | 'stale' | 'unknown' | 'pending';
 }
+
+// Ключ: "api_usage"
+// Значение: { count: number, date: string }
+// count — запросов сегодня, date — ISO-дата (YYYY-MM-DD) для сброса в полночь UTC
 ```
 
 ### chrome.storage.sync — настройки
@@ -92,6 +98,10 @@ interface DomainRecord {
 // "check_interval_hours"  → number (default: 24)
 // "theme"                 → 'dark' | 'light' | 'auto'
 ```
+
+**Два типа записей в domains:**
+- `watchlist: true` — домены пользователя, авто-проверка по расписанию
+- `watchlist: false` — ad-hoc кеш (проверены при посещении), не обновляются автоматически
 
 **Почему не IndexedDB:**
 - Нет рантайм-зависимости (`idb`)
@@ -113,24 +123,38 @@ interface DomainRecord {
 chrome.alarms.create('watchlist-tick', { periodInMinutes: 60 })
 ```
 
-Каждый час alarm проверяет: какие домены из watchlist имеют `last_checked + interval_hours < now` → добавляет их в очередь.
+Каждый час alarm проверяет: какие домены из watchlist (`watchlist: true`) имеют `last_checked + interval_hours < now` → добавляет их в очередь.
+
+### Ad-hoc проверки (badge для всех сайтов)
+
+При переключении вкладки (`tabs.onActivated`, `tabs.onUpdated`):
+1. Извлечь hostname из URL
+2. Поиск в `domains` storage:
+   - Есть + свежий → показать badge
+   - Есть + наш `last_checked` устарел (для watchlist) → показать текущий badge, добавить в очередь
+   - Нет → показать `…` (pending), добавить в очередь с низким приоритетом
+3. Ad-hoc результат сохраняется с `watchlist: false`, не обновляется автоматически
 
 ### Очередь запросов
 
 ```
-Queue: string[] в памяти service worker
-(in-memory, но восстановима: при пробуждении SW заново
+Queue: { domain: string, priority: 'high' | 'normal' | 'low' }[]
+в памяти service worker (восстановима: при пробуждении SW заново
 собирается из storage.local по last_checked + interval)
 
-Цикл обработки:
-  1. pop domain из очереди
-  2. GET /api/v3/domains/{domain}
-  3. Обновить DomainRecord в storage.local
-  4. Обновить badge (если домен = активная вкладка)
-  5. setTimeout(15000) → следующий
-```
+Приоритеты:
+  high   — добавление из UI / "Check now"
+  normal — watchlist авто-обновление по расписанию
+  low    — ad-hoc проверка при посещении сайта
 
-**Приоритет:** при добавлении нового домена через UI → `unshift` в начало очереди (проверяется первым).
+Цикл обработки:
+  1. pop domain (по приоритету)
+  2. GET /api/v3/domains/{domain}
+  3. Обновить DomainRecord в storage.local (+ api_usage counter)
+  4. Вычислить status: если vt_last_analysis_date > 30 дней → 'stale'
+  5. Обновить badge (если домен = активная вкладка)
+  6. setTimeout(15000) → следующий
+```
 
 ### onInstalled
 - `reason === 'install'` → `browser.tabs.create({ url: 'welcome/index.html' })`
@@ -146,20 +170,24 @@ Queue: string[] в памяти service worker
 
 | Статус | Цвет | Текст | Условие |
 |--------|------|-------|---------|
-| clean | `#22c55e` зелёный | `✓` | malicious=0 И suspicious=0 |
-| suspicious | `#f59e0b` жёлтый | `!` | suspicious > 0 |
-| malicious | `#ef4444` красный | `✗` | malicious > 0 |
+| clean | `#22c55e` зелёный | `✓` | malicious=0 И suspicious=0 И VT scan < 30 дней |
+| suspicious | `#f59e0b` жёлтый | `!` | suspicious > 0 И VT scan < 30 дней |
+| malicious | `#ef4444` красный | `✗` | malicious > 0 И VT scan < 30 дней |
+| stale | `#6b7280` серый | `?` | VT scan > 30 дней назад (данные устарели) |
 | unknown | `#6b7280` серый | `?` | нет данных / нет ключа |
 | pending | `#3b82f6` синий | `…` | домен в очереди |
 
-**Приоритет:** malicious > suspicious > clean (если malicious > 0, статус всегда malicious).
+**Приоритет вычисления:** pending → stale (если `vt_last_analysis_date` > 30 дней) → malicious → suspicious → clean → unknown.
+
+**Badge работает для ВСЕХ сайтов**, не только watchlist:
+- Watchlist домены: статус из кеша, авто-обновление по расписанию
+- Любой другой сайт: при первом визите → очередь → проверка → кеш
+- Домен не в кеше → `…` (pending) → после проверки badge обновляется
 
 **Триггеры обновления:**
 - `tabs.onActivated` — переключение вкладки
 - `tabs.onUpdated` (status === 'complete') — навигация внутри вкладки
 - Завершение проверки домена из очереди
-
-**Логика:** извлечь hostname из URL активной вкладки → найти в `domains` storage → установить badge по статусу. Если домена нет в watchlist → не показывать badge (пустой).
 
 ---
 
@@ -204,7 +232,8 @@ Queue: string[] в памяти service worker
 - Список доменов, каждый элемент:
   - Имя домена (моноспейс)
   - Цветная точка статуса
-  - Дата последней проверки (relative: «2h ago», «3 days ago»)
+  - Дата нашей проверки (relative: «2h ago», «3 days ago»)
+  - Дата обхода VT (если stale: «VT scan: 45 days ago» + предупреждение)
   - Кнопка «Check now» (внеочередная проверка)
   - Кнопка «Remove» (удалить из watchlist)
 - Форма добавления домена:
@@ -217,9 +246,11 @@ Queue: string[] в памяти service worker
 - Статус-блок:
   - Цветной индикатор + текст статуса
   - Breakdown: `Malicious: N / Suspicious: N / Harmless: N / Undetected: N`
-  - Дата последней проверки VT
+  - «Checked: 2h ago» — дата нашей проверки
+  - «VT scanned: 12 Mar 2026» — дата обхода VT
+  - Если stale: предупреждение «VT data is over 30 days old»
 - Кнопка «Check now»
-- Кнопка «Add to watchlist» (если домен ещё не в списке)
+- Кнопка «Add to watchlist» (если домен не в watchlist — промоутит в авто-проверки)
 - Если нет данных: «Not checked yet. Click "Check now" to scan.»
 
 Эта же модель данных может использоваться в compact popup-режиме, но без watchlist/settings-элементов и без отдельной сложной навигации.
@@ -228,6 +259,7 @@ Queue: string[] в памяти service worker
 - **API Key:** password-инпут + кнопка «Verify» (тестовый запрос)
 - **Check interval:** select `[12h / 24h / 3 days / 7 days]`
 - **Theme:** переключатель dark / light / auto
+- **API usage:** «142 / 500 requests today» — счётчик квоты (сбрасывается в полночь UTC)
 - **Actions:**
   - «Check all now» — форсировать проверку всего watchlist
   - «Setup guide» — повторно открыть welcome page
@@ -343,6 +375,7 @@ type RequestMessage =
 - ❌ Push-уведомления / Telegram-бот
 - ❌ История изменений статусов (трекинг деградации)
 - ❌ Проверка URL (только домены)
+- ❌ Запрос переобхода VT (`POST /domains/{domain}/analyse`) — v2, когда stale data
 - ❌ Платные фичи / пейволл
 - ❌ Множественные API-ключи
 - ❌ Экспорт/импорт watchlist
@@ -368,27 +401,18 @@ type RequestMessage =
 
 ---
 
-## 16. Открытые вопросы
+## 16. Решённые вопросы
 
-> Обсудить с командой перед началом разработки
+### Q1: Домены в local vs sync? → **local**
+Домены и VT-статусы в `storage.local`. Настройки (ключ, интервал, тема) в `storage.sync`.
 
-### Q1: Домены в local vs sync?
-Сейчас в спеке: домены в `storage.local`, настройки в `storage.sync`.
-**Альтернатива:** домены тоже в sync → watchlist синхронизируется между устройствами (но VT-статусы всё равно устарели).
-**Рекомендация:** local. Статусы локальны, sync имеет лимит 100KB.
+### Q2: Badge для сайтов НЕ из watchlist? → **для всех**
+Badge работает для всех сайтов. При первом визите домен проверяется и кешируется (`watchlist: false`). Ad-hoc кеш не обновляется автоматически. Watchlist домены обновляются по расписанию.
 
-### Q2: Badge для сайтов НЕ из watchlist?
-**Вариант A:** Badge только для доменов из watchlist. Для остальных — пустой.
-**Вариант B:** На tab «Current Site» можно запустить проверку любого сайта — результат кешируется, badge обновляется.
-**Рекомендация:** v1 — вариант A (проще). Кеширование ad-hoc проверок — в v2.
+### Q3: Локализация в v1? → **i18n-ready, English only**
+Код сразу на `data-i18n` атрибутах + `_locales/en`. Переводы добавляются позже без рефакторинга.
 
-### Q3: Локализация в v1?
-**Вариант A:** Только английский, i18n в v2.
-**Вариант B:** Сразу i18n-ready (data-i18n атрибуты, _locales/en), добавить языки позже.
-**Рекомендация:** Вариант B — минимальные усилия сейчас, не придётся рефакторить позже.
+### Q4: Название → **VirusTotal Domain Monitor**
 
-### Q4: Название для стора
-Варианты:
-- **VirusTotal Domain Monitor** — текущее рабочее название, точно описывает функцию
-- **Domain Guard** — маркетинговее, но может ввести в заблуждение (не guard/блокировщик)
-- **VT Watchdog** — запоминается, но неформально
+### Q5: Stale data → **серый badge**
+Если `vt_last_analysis_date` > 30 дней — badge серый (`?`), в UI предупреждение «VT data is over 30 days old». Запрос переобхода (`POST /analyse`) — в v2.

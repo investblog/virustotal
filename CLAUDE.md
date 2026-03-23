@@ -24,7 +24,7 @@ WXT scaffold in place (wxt.config.ts, package.json, tsconfig, eslint). No `src/`
 - `npm run check` — tsc + eslint
 
 ## Storage
-- **`storage.local`**: `domains` → `Record<string, DomainRecord>`
+- **`storage.local`**: `domains` → `Record<string, DomainRecord>` (watchlist + ad-hoc cache), `api_usage`
 - **`storage.sync`**: `vt_api_key`, `check_interval_hours`, `theme`
 
 ## VT API
@@ -41,10 +41,11 @@ Response: data.attributes.last_analysis_stats → { malicious, suspicious, harml
 | clean | `#22c55e` | `✓` |
 | suspicious | `#f59e0b` | `!` |
 | malicious | `#ef4444` | `✗` |
+| stale | `#6b7280` | `?` |
 | unknown | `#6b7280` | `?` |
 | pending | `#3b82f6` | `…` |
 
-Priority: malicious > suspicious > clean. Watchlist-only in v1.
+Badge for ALL domains. Stale = VT scan > 30 days → gray. Ad-hoc cache on first visit.
 
 ## Key Conventions
 - Entrypoint scripts: `main.ts` inside directories

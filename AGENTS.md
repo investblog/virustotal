@@ -144,13 +144,18 @@ Use these defaults unless the user explicitly changes the spec:
 - Keep domain records in `storage.local`; keep settings in `storage.sync`.
 - Chrome/Edge should open the side panel from the extension icon.
 - Do not create a separate `popup/` entrypoint by default; Firefox fallback should reuse the sidepanel UI in compact mode.
-- Badge behavior in v1 should be watchlist-first, not full automatic scanning of every visited site.
-- UI copy can ship in English first, but implementation should avoid making future i18n painful.
+- Badge works for ALL domains: watchlist auto-refreshes on schedule, ad-hoc domains are checked on first visit and cached (`watchlist: false`).
+- Stale VT data (`vt_last_analysis_date` > 30 days) → gray badge regardless of stats. Show warning in UI.
+- Track API usage (`requests_today` + date) in `storage.local`. Show counter in Settings.
+- Queue has priorities: `high` (user action) > `normal` (watchlist schedule) > `low` (ad-hoc tab visit).
+- UI copy uses `data-i18n` attributes from day one with `_locales/en`. No translations in v1, but i18n-ready.
 
-## Open Questions That Still Matter
-- Final public/store name and branding wording.
-- Whether `Current Site` in v1 should allow ad-hoc checks for domains outside the watchlist, or only encourage adding the domain first.
-- Whether v1 should be fully i18n-ready from day one or remain English-only internally until later.
+## Resolved Questions
+- **Store name**: VirusTotal Domain Monitor.
+- **Badge scope**: all domains, not watchlist-only. Ad-hoc cache on first visit.
+- **Stale data**: gray badge if VT scan > 30 days. Rescan API (`POST /analyse`) deferred to v2.
+- **i18n**: code is i18n-ready (`data-i18n` + `_locales/en`), no translations shipped in v1.
+- **Domains storage**: `storage.local`. Settings in `storage.sync`.
 
 ## Build Order
 1. Create shared types, constants, storage helpers, VT client, queue, alarm helpers, badge logic, theme helpers, and messaging protocol.
