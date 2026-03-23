@@ -163,7 +163,13 @@ async function renderCurrentSite(): Promise<void> {
 
   let domain: string | null = null;
   try {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    // Try currentWindow first, fall back to lastFocusedWindow
+    // (sidePanel may not belong to the "current" window context)
+    let tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tabs.length) {
+      tabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+    }
+    const tab = tabs[0];
     if (tab?.url) domain = extractDomain(tab.url);
   } catch { /* ignore */ }
 
