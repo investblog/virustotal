@@ -173,6 +173,8 @@ Bulk-операции не должны ломать текущую budget model
 
 ## v2.0 - False Positive Resolution
 
+Статус: **implemented**.
+
 Ключевая фича: помочь вебмастеру оспорить false positive.
 
 ### VT API
