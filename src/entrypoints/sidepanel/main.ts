@@ -186,11 +186,16 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
 
     const checkBtn = document.createElement('button');
     checkBtn.className = 'btn btn--sm btn--outline';
-    checkBtn.textContent = _('checkNowBtn', 'Check');
-    checkBtn.addEventListener('click', () => {
-      checkBtn.classList.add('btn--loading');
-      void sendMessage({ type: 'CHECK_DOMAIN', domain: record.domain });
-    });
+    if (record.status === 'pending') {
+      checkBtn.textContent = 'Queued';
+      checkBtn.disabled = true;
+    } else {
+      checkBtn.textContent = _('checkNowBtn', 'Check');
+      checkBtn.addEventListener('click', () => {
+        checkBtn.classList.add('btn--loading');
+        void sendMessage({ type: 'CHECK_DOMAIN', domain: record.domain });
+      });
+    }
 
     // Rescan (stale data): API button + manual link
     if (isStale(record)) {
