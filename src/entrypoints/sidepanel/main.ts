@@ -156,6 +156,22 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     if (record.status === 'pending') {
       checked.textContent = 'in queue\u2026';
       checked.style.color = 'var(--status-pending)';
+    } else if (isStale(record) && record.vt_last_analysis_date) {
+      // Stale: show VT scan date + rescan link
+      const staleText = document.createElement('span');
+      staleText.textContent = `VT scan: ${new Date(record.vt_last_analysis_date).toLocaleDateString()}`;
+      staleText.style.color = 'var(--status-suspicious)';
+      staleText.title = record.last_checked ? `Checked: ${timeAgo(record.last_checked)}` : '';
+      meta.appendChild(staleText);
+
+      const rescanLink = document.createElement('a');
+      rescanLink.className = 'stale-warning';
+      rescanLink.href = `https://www.virustotal.com/gui/domain/${record.domain}`;
+      rescanLink.target = '_blank';
+      rescanLink.rel = 'noreferrer';
+      rescanLink.textContent = 'Rescan on VT \u2197';
+      rescanLink.style.cursor = 'pointer';
+      meta.appendChild(rescanLink);
     } else if (record.last_checked) {
       checked.dataset.timestamp = String(record.last_checked);
       checked.textContent = timeAgo(record.last_checked);
@@ -163,13 +179,6 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       checked.textContent = 'not checked';
     }
     meta.appendChild(checked);
-
-    if (isStale(record)) {
-      const stale = document.createElement('span');
-      stale.className = 'stale-warning';
-      stale.textContent = _('staleWarning', 'VT data is over 30 days old');
-      meta.appendChild(stale);
-    }
 
     info.append(name, meta);
 
