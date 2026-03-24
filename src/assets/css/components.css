@@ -386,18 +386,7 @@ body {
   50% { left: 35%; width: 40%; }
   100% { left: 100%; width: 30%; }
 }
-.panel__nav[data-queue]::before {
-  content: attr(data-queue);
-  position: absolute;
-  right: var(--space-2);
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  color: var(--status-pending);
-  font-weight: var(--fw-medium);
-  pointer-events: none;
-  z-index: 1;
-}
+/* queue counter moved to footer badges */
 .nav-tab {
   flex: 1;
   display: flex;
@@ -797,8 +786,9 @@ select.input {
   color: var(--text-subtle);
   flex-shrink: 0;
 }
-.panel__footer-count {
-  font-variant-numeric: tabular-nums;
+.panel__footer-badges {
+  display: flex;
+  gap: 3px;
 }
 .panel__footer-links {
   display: flex;
@@ -837,6 +827,14 @@ select.input {
   font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   cursor: default;
+}
+.panel__footer-badge--queue {
+  background: color-mix(in srgb, var(--status-pending) 15%, transparent);
+  color: var(--status-pending);
+}
+.panel__footer-badge--tokens {
+  background: color-mix(in srgb, var(--status-suspicious) 12%, transparent);
+  color: var(--status-suspicious);
 }
 
 /* === Toast notifications === */

@@ -489,7 +489,7 @@ export default defineBackground(() => {
               for (const domain of msg.domains) {
                 if (queued >= maxBatch) break;
                 const projectedCount = usage.count + queue.length + queued;
-                if (projectedCount >= BUDGET.WATCHLIST_RESERVE) break;
+                if (projectedCount >= BUDGET.HARD_CAP) break;
                 if (enqueue(queue, domain, 'high')) queued += 1;
               }
               if (queued > 0) {

@@ -542,15 +542,16 @@ let prevPendingCount = 0;
 
 function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
   const nav = document.getElementById('navTabs');
+  const queueBadge = document.getElementById('footerQueue');
+  const tokensBadge = document.getElementById('footerTokens');
   const all = Object.values(domains).filter(d => d.watchlist);
   const pendingCount = all.filter(d => d.status === 'pending').length;
 
+  // Nav loading bar
   if (pendingCount > 0) {
     nav?.classList.add('is-loading');
-    nav?.setAttribute('data-queue', `Checking ${pendingCount}\u2026`);
   } else {
     nav?.classList.remove('is-loading');
-    nav?.removeAttribute('data-queue');
 
     // Queue just finished — show summary toast
     if (prevPendingCount > 0) {
@@ -565,6 +566,25 @@ function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
     }
   }
   prevPendingCount = pendingCount;
+
+  // Footer queue badge
+  if (queueBadge) {
+    if (pendingCount > 0) {
+      queueBadge.textContent = String(pendingCount);
+      queueBadge.title = `${pendingCount} in queue`;
+      queueBadge.hidden = false;
+    } else {
+      queueBadge.hidden = true;
+    }
+  }
+
+  // Footer tokens badge (async update)
+  void getApiUsage().then(usage => {
+    if (tokensBadge) {
+      tokensBadge.textContent = String(usage.count);
+      tokensBadge.title = `${usage.count} / 500 API requests today`;
+    }
+  });
 }
 
 // --- Live updates ---
