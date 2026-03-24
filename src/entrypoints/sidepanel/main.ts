@@ -144,7 +144,10 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     const meta = document.createElement('div');
     meta.className = 'domain-card__meta';
     const checked = document.createElement('span');
-    if (record.last_checked) {
+    if (record.status === 'pending') {
+      checked.textContent = 'in queue\u2026';
+      checked.style.color = 'var(--status-pending)';
+    } else if (record.last_checked) {
       checked.dataset.timestamp = String(record.last_checked);
       checked.textContent = timeAgo(record.last_checked);
     } else {
@@ -470,6 +473,20 @@ function initPopupMode(): void {
   });
 }
 
+// --- Queue activity indicator ---
+
+function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
+  const nav = document.getElementById('navTabs');
+  const pendingCount = Object.values(domains).filter(d => d.status === 'pending').length;
+  if (pendingCount > 0) {
+    nav?.classList.add('is-loading');
+    nav?.setAttribute('data-queue', `Checking ${pendingCount}\u2026`);
+  } else {
+    nav?.classList.remove('is-loading');
+    nav?.removeAttribute('data-queue');
+  }
+}
+
 // --- Live updates ---
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -477,6 +494,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     const newDomains = (changes[STORAGE_KEYS.DOMAINS].newValue || {}) as Record<string, DomainRecord>;
     renderWatchlist(newDomains);
     void renderCurrentSite();
+    updateQueueIndicator(newDomains);
   }
   if (area === 'local' && changes[STORAGE_KEYS.API_USAGE]) {
     void updateUsageDisplay();
@@ -523,6 +541,7 @@ void (async function boot(): Promise<void> {
 
   const domains = await getDomains();
   renderWatchlist(domains);
+  updateQueueIndicator(domains);
   await renderCurrentSite();
   await initSettings();
 
