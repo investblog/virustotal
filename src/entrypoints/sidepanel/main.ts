@@ -17,6 +17,36 @@ const $ = (s: string) => document.querySelector(s);
 // --- Mode detection ---
 const isSidebar = location.hash.includes('sidebar');
 const isPopup = !isSidebar;
+let hostWindowId: number | null = null;
+
+async function getContextTab() {
+  try {
+    if (isSidebar) {
+      if (hostWindowId === null) {
+        const win = await browser.windows.getCurrent();
+        hostWindowId = win.id ?? null;
+      }
+      if (hostWindowId !== null) {
+        const tabs = await browser.tabs.query({ active: true, windowId: hostWindowId });
+        if (tabs.length) return tabs[0];
+      }
+    }
+
+    let tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tabs.length) {
+      tabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+    }
+    return tabs[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function shouldRefreshForWindow(windowId?: number): boolean {
+  if (!isSidebar) return true;
+  if (hostWindowId === null) return true;
+  return windowId === hostWindowId;
+}
 
 // --- Tab navigation ---
 type ViewName = 'watchlist' | 'current' | 'settings';
@@ -169,16 +199,9 @@ async function renderCurrentSite(): Promise<void> {
   const apiKey = await getApiKey();
 
   let domain: string | null = null;
-  try {
-    // Try currentWindow first, fall back to lastFocusedWindow
-    // (sidePanel may not belong to the "current" window context)
-    let tabs = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tabs.length) {
-      tabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
-    }
-    const tab = tabs[0];
-    if (tab?.url) domain = extractDomain(tab.url);
-  } catch { /* ignore */ }
+  const tab = await getContextTab();
+  const tabUrl = tab?.url ?? tab?.pendingUrl;
+  if (tabUrl) domain = extractDomain(tabUrl);
 
   if (!domain) {
     const msg = document.createElement('div');
@@ -402,7 +425,7 @@ function initPopupMode(): void {
       try {
         const sp = (browser as any).sidePanel;
         if (sp?.open) {
-          const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+          const tab = await getContextTab();
           if (tab?.id) {
             await sp.open({ tabId: tab.id });
           }
@@ -427,6 +450,27 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync' && changes[STORAGE_KEYS.VT_API_KEY]) {
     const keyInput = document.getElementById('settingsApiKey') as HTMLInputElement | null;
     if (keyInput) keyInput.value = (changes[STORAGE_KEYS.VT_API_KEY].newValue || '') as string;
+  }
+});
+
+browser.tabs.onActivated.addListener(({ windowId }) => {
+  if (shouldRefreshForWindow(windowId)) {
+    void renderCurrentSite();
+  }
+});
+
+browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (!tab.active) return;
+  if (!changeInfo.status && !changeInfo.url) return;
+  if (shouldRefreshForWindow(tab.windowId)) {
+    void renderCurrentSite();
+  }
+});
+
+browser.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+  if (shouldRefreshForWindow(windowId)) {
+    void renderCurrentSite();
   }
 });
 
