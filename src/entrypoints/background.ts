@@ -125,8 +125,8 @@ export default defineBackground(() => {
     if (paused) return; // pause badge takes priority
     const queueSize = queue.length + (processing ? 1 : 0);
     try {
-      if (queueSize > 0) {
-        void actionApi.setBadgeText({ text: String(queueSize) });
+      if (queueSize > 0 || queueTimer) {
+        void actionApi.setBadgeText({ text: String(Math.max(queueSize, 1)) });
         void actionApi.setBadgeBackgroundColor({ color: '#3b82f6' });
       } else {
         void actionApi.setBadgeText({ text: '' });
@@ -136,8 +136,8 @@ export default defineBackground(() => {
 
   async function updateBadgeForTab(tabId: number): Promise<void> {
     // Don't override global queue badge with per-tab status
-    const queueSize = queue.length + (processing ? 1 : 0);
-    if (queueSize > 0) return;
+    // Check queue + processing + timer (timer means next item coming in 15s)
+    if (queue.length > 0 || processing || queueTimer) return;
 
     let url: string | undefined;
     try {
