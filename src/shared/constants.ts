@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
   CHECK_INTERVAL: 'check_interval_hours',
   THEME: 'theme',
   PAUSE_UNTIL: 'pause_until',
+  RESCAN_POLICY: 'rescan_policy',
 } as const;
 
 export const PAUSE_DURATION_MS = 60 * 60 * 1000; // 1 hour

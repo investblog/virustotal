@@ -1,4 +1,4 @@
-import type { DomainRecord, ApiUsage, CheckInterval, ThemePreference } from './types';
+import type { DomainRecord, ApiUsage, CheckInterval, ThemePreference, RescanPolicy } from './types';
 import { STORAGE_KEYS } from './constants';
 
 const DEFAULT_CHECK_INTERVAL: CheckInterval = 24;
@@ -142,6 +142,22 @@ export async function getThemePreference(): Promise<ThemePreference> {
 export async function saveThemePreference(pref: ThemePreference): Promise<void> {
   return new Promise(resolve => {
     chrome.storage.sync.set({ [STORAGE_KEYS.THEME]: pref }, resolve);
+  });
+}
+
+// --- Rescan policy (storage.sync) ---
+
+export async function getRescanPolicy(): Promise<RescanPolicy> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get({ [STORAGE_KEYS.RESCAN_POLICY]: 'stale30' }, data => {
+      resolve(data[STORAGE_KEYS.RESCAN_POLICY] as RescanPolicy);
+    });
+  });
+}
+
+export async function saveRescanPolicy(policy: RescanPolicy): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.RESCAN_POLICY]: policy }, resolve);
   });
 }
 

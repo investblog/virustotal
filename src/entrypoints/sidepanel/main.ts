@@ -5,13 +5,14 @@ import { sendMessage } from '@shared/messaging';
 import {
   getDomains, getApiKey, saveApiKey, getApiUsage,
   getCheckInterval, saveCheckInterval, isPaused,
+  getRescanPolicy, saveRescanPolicy,
 } from '@shared/db';
 import { STORAGE_KEYS as SK_PAUSE } from '@shared/constants';
 import { showToast } from '@shared/ui-helpers';
 import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
-import type { DomainRecord, DomainStatus, CheckInterval } from '@shared/types';
+import type { DomainRecord, DomainStatus, CheckInterval, RescanPolicy } from '@shared/types';
 import { openBulkAddDrawer } from './components/bulk-add-drawer';
 import { openDisputeDrawer } from './components/dispute-drawer';
 
@@ -455,6 +456,14 @@ async function initSettings(): Promise<void> {
   intervalSelect.value = String(interval);
   intervalSelect.addEventListener('change', () => {
     void saveCheckInterval(Number(intervalSelect.value) as CheckInterval);
+  });
+
+  // Rescan policy
+  const rescanSelect = document.getElementById('settingsRescan') as HTMLSelectElement;
+  const rescanPolicy = await getRescanPolicy();
+  rescanSelect.value = rescanPolicy;
+  rescanSelect.addEventListener('change', () => {
+    void saveRescanPolicy(rescanSelect.value as RescanPolicy);
   });
 
   // API usage

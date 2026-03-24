@@ -114,6 +114,15 @@
               <option value="168" data-i18n="interval7d">7 days</option>
             </select>
           </div>
+          <div class="field">
+            <label class="field__label" for="settingsRescan">Rescan policy</label>
+            <select id="settingsRescan" class="input">
+              <option value="never">Never rescan</option>
+              <option value="stale30" selected>Auto-rescan if stale (30d)</option>
+              <option value="stale7">Auto-rescan if stale (7d)</option>
+              <option value="always">Always rescan</option>
+            </select>
+          </div>
           <button id="btnCheckAll" class="btn btn--outline" type="button" data-i18n="checkAllBtn">Check all now</button>
         </fieldset>
 

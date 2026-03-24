@@ -2,13 +2,14 @@ import { defineBackground } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
 import type { QueueItem, DomainRecord } from '@shared/types';
 import type { RequestMessage } from '@shared/messaging/protocol';
-import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET, PAUSE_DURATION_MS } from '@shared/constants';
+import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET, PAUSE_DURATION_MS, STALE_THRESHOLD_MS } from '@shared/constants';
 import { extractDomain } from '@shared/domain-utils';
 import {
   getDomains, getDomain, saveDomain, removeDomain,
   getWatchlistDomains, getApiKey, saveApiKey,
   getCheckInterval, getApiUsage, incrementApiUsage, resetApiUsageIfNewDay,
   getPauseUntil, setPauseUntil, isPaused,
+  getRescanPolicy,
 } from '@shared/db';
 import { checkDomain, rescanDomain } from '@shared/vt-client';
 import { enqueue, dequeue, isQueued, canEnqueue, isInCooldown } from '@shared/queue';
@@ -192,7 +193,20 @@ export default defineBackground(() => {
       return;
     }
 
-    const result = await checkDomain(item.domain, apiKey);
+    // Smart Check: decide GET vs POST+GET based on rescan policy
+    const policy = await getRescanPolicy();
+    const existing = await getDomain(item.domain);
+    let needsRescan = false;
+    if (policy === 'always') {
+      needsRescan = true;
+    } else if (policy !== 'never' && existing?.vt_last_analysis_date) {
+      const threshold = policy === 'stale7' ? 7 * 24 * 60 * 60 * 1000 : STALE_THRESHOLD_MS;
+      needsRescan = (Date.now() - existing.vt_last_analysis_date) > threshold;
+    }
+
+    const result = needsRescan
+      ? await rescanDomain(item.domain, apiKey)
+      : await checkDomain(item.domain, apiKey);
 
     if (result.ok) {
       retryCount.delete(item.domain);

@@ -44,6 +44,7 @@ export interface QueueItem {
 export type Theme = 'dark' | 'light';
 export type ThemePreference = Theme | 'auto';
 export type CheckInterval = 12 | 24 | 72 | 168;
+export type RescanPolicy = 'never' | 'stale30' | 'stale7' | 'always';
 
 export interface VtDomainResponse {
   data: {
