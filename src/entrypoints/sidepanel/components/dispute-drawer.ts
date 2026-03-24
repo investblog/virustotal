@@ -1,6 +1,6 @@
 import { el } from '@shared/ui-helpers';
 import { getVendorContact } from '@shared/vendors';
-import { generateDisputeText, generateMailtoLink } from '@shared/dispute-templates';
+import { generateDisputeText, generateMailtoLink, generateAiPrompt } from '@shared/dispute-templates';
 import { getDomain, saveDomain } from '@shared/db';
 import { toUnicode } from '@shared/domain-utils';
 import { createDrawer } from './drawer';
@@ -81,22 +81,6 @@ export function openDisputeDrawer(domain: string, vendors: VtVendorResult[], dis
       actions.appendChild(mailBtn);
     }
 
-    const copyBtn = el('button', 'btn btn--ghost btn--sm copy-flash');
-    copyBtn.type = 'button';
-    copyBtn.textContent = '\u2398 Copy text';
-    copyBtn.addEventListener('click', () => {
-      const text = generateDisputeText(vendor.vendor, domain, vendor.result);
-      void navigator.clipboard.writeText(text).then(() => {
-        copyBtn.classList.add('is-copied');
-        copyBtn.textContent = '\u2713 Copied';
-        setTimeout(() => {
-          copyBtn.classList.remove('is-copied');
-          copyBtn.textContent = '\u2398 Copy text';
-        }, 2000);
-      });
-    });
-    actions.appendChild(copyBtn);
-
     if (!contact) {
       const noContact = el('span', 'vendor-card__no-contact', 'No contact info');
       actions.appendChild(noContact);
@@ -111,7 +95,56 @@ export function openDisputeDrawer(domain: string, vendors: VtVendorResult[], dis
       void cycleDisputeStatus(domain, vendor.vendor, statusEl);
     });
 
-    card.append(header, actions, statusEl);
+    // Text preview with tabs: Template | AI Prompt
+    const templateText = generateDisputeText(vendor.vendor, domain, vendor.result);
+    const promptText = generateAiPrompt(vendor.vendor, domain, vendor.result);
+
+    const textBlock = el('div', 'vendor-card__text-block');
+
+    const tabBar = el('div', 'vendor-card__tabs');
+    const tabTemplate = el('button', 'vendor-card__tab is-active', 'Template');
+    tabTemplate.type = 'button';
+    const tabPrompt = el('button', 'vendor-card__tab', 'AI Prompt');
+    tabPrompt.type = 'button';
+    tabBar.append(tabTemplate, tabPrompt);
+
+    const preview = el('pre', 'vendor-card__preview');
+    preview.textContent = templateText;
+
+    const copyBtn = el('button', 'btn btn--sm btn--outline copy-flash');
+    copyBtn.type = 'button';
+    copyBtn.textContent = 'Copy';
+
+    let activeText = templateText;
+
+    tabTemplate.addEventListener('click', () => {
+      tabTemplate.classList.add('is-active');
+      tabPrompt.classList.remove('is-active');
+      preview.textContent = templateText;
+      activeText = templateText;
+    });
+
+    tabPrompt.addEventListener('click', () => {
+      tabPrompt.classList.add('is-active');
+      tabTemplate.classList.remove('is-active');
+      preview.textContent = promptText;
+      activeText = promptText;
+    });
+
+    copyBtn.addEventListener('click', () => {
+      void navigator.clipboard.writeText(activeText).then(() => {
+        copyBtn.classList.add('is-copied');
+        copyBtn.textContent = '\u2713 Copied';
+        setTimeout(() => {
+          copyBtn.classList.remove('is-copied');
+          copyBtn.textContent = 'Copy';
+        }, 2000);
+      });
+    });
+
+    textBlock.append(tabBar, preview, copyBtn);
+
+    card.append(header, actions, textBlock, statusEl);
     body.appendChild(card);
   }
 
