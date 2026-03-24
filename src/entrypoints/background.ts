@@ -122,18 +122,28 @@ export default defineBackground(() => {
   }
 
   /** Show queue size on badge globally (no tabId = all tabs) */
+  let lastBadgeCount = 0;
   async function updateQueueBadge(): Promise<void> {
     const paused = await isPaused();
     if (paused) return;
     const queueSize = queue.length + (processing ? 1 : 0);
     try {
       if (queueSize > 0) {
+        // Flash on count change: briefly white bg, then blue
+        if (queueSize !== lastBadgeCount && lastBadgeCount > 0) {
+          void actionApi.setBadgeBackgroundColor({ color: '#93c5fd' });
+          setTimeout(() => {
+            void actionApi.setBadgeBackgroundColor({ color: '#3b82f6' });
+          }, 200);
+        } else {
+          void actionApi.setBadgeBackgroundColor({ color: '#3b82f6' });
+        }
         void actionApi.setBadgeText({ text: String(queueSize) });
-        void actionApi.setBadgeBackgroundColor({ color: '#3b82f6' });
       } else {
         void actionApi.setBadgeText({ text: '' });
       }
     } catch { /* ignore */ }
+    lastBadgeCount = queueSize;
   }
 
   async function updateBadgeForTab(tabId: number): Promise<void> {

@@ -556,6 +556,7 @@ function initPopupMode(): void {
 // --- Queue activity indicator (from background, not storage) ---
 
 let prevQueueLength = 0;
+let queuePollTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function pollQueueStatus(): Promise<void> {
   const footerEl = document.getElementById('panelFooter');
@@ -572,9 +573,13 @@ async function pollQueueStatus(): Promise<void> {
         queueBadge.title = `${queueLength} in queue`;
         queueBadge.hidden = false;
       }
+      // Keep polling while queue active
+      if (queuePollTimer) clearTimeout(queuePollTimer);
+      queuePollTimer = setTimeout(() => { queuePollTimer = null; void pollQueueStatus(); }, 2000);
     } else {
       footerEl?.classList.remove('is-loading');
       if (queueBadge) queueBadge.hidden = true;
+      if (queuePollTimer) { clearTimeout(queuePollTimer); queuePollTimer = null; }
 
       // Queue just finished
       if (prevQueueLength > 0) {
