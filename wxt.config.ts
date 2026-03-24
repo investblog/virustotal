@@ -20,8 +20,8 @@ export default defineConfig({
     default_locale: 'en',
 
     permissions: (browser === 'firefox')
-      ? ['storage', 'alarms', 'tabs', 'activeTab']
-      : ['storage', 'alarms', 'tabs', 'activeTab', 'sidePanel'],
+      ? ['storage', 'alarms', 'tabs', 'activeTab', 'notifications']
+      : ['storage', 'alarms', 'tabs', 'activeTab', 'sidePanel', 'notifications'],
 
     host_permissions: ['https://www.virustotal.com/*'],
 

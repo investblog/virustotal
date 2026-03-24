@@ -82,6 +82,36 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
   }
 
+  // Track how many items were processed in this batch
+  let batchProcessed = 0;
+
+  async function notifyQueueComplete(): Promise<void> {
+    if (batchProcessed === 0) return;
+    const count = batchProcessed;
+    batchProcessed = 0;
+
+    try {
+      const domains = await getDomains();
+      const all = Object.values(domains).filter(d => d.watchlist);
+      const mal = all.filter(d => d.status === 'malicious').length;
+      const sus = all.filter(d => d.status === 'suspicious').length;
+
+      let message: string;
+      if (mal > 0 || sus > 0) {
+        message = `${count} checked: ${mal} malicious, ${sus} suspicious`;
+      } else {
+        message = `${count} domain${count > 1 ? 's' : ''} checked — all clean`;
+      }
+
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: browser.runtime.getURL('/icons/icon-128.png'),
+        title: 'VT Domain Monitor',
+        message,
+      });
+    } catch { /* ignore — notifications may not be available */ }
+  }
+
   /** Show queue size on badge globally (no tabId = all tabs) */
   async function updateQueueBadge(): Promise<void> {
     const paused = await isPaused();
@@ -146,7 +176,12 @@ export default defineBackground(() => {
     if (processing) return;
 
     const item = dequeue(queue);
-    if (!item) { queueTimer = null; void updateQueueBadge(); return; }
+    if (!item) {
+      queueTimer = null;
+      void updateQueueBadge();
+      void notifyQueueComplete();
+      return;
+    }
 
     processing = item.domain;
     void updateQueueBadge();
@@ -176,6 +211,7 @@ export default defineBackground(() => {
       };
       await saveDomain(record);
       await incrementApiUsage();
+      batchProcessed += 1;
     } else {
       switch (result.error.kind) {
         case 'invalid_key':
@@ -226,6 +262,7 @@ export default defineBackground(() => {
           };
           await saveDomain(record);
           await incrementApiUsage();
+          batchProcessed += 1;
           break;
         }
 
