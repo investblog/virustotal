@@ -712,6 +712,21 @@ void (async function boot(): Promise<void> {
   initPopupMode();
   initNavigation();
 
+  // Store rate link — browser-specific developer profile
+  const storeLink = document.getElementById('storeRateLink') as HTMLAnchorElement | null;
+  if (storeLink) {
+    const isFirefox = typeof (browser as any).runtime.getBrowserInfo === 'function';
+    const isEdge = navigator.userAgent.includes('Edg/');
+    if (isFirefox) {
+      storeLink.href = 'https://addons.mozilla.org/en-US/firefox/user/19709072/';
+    } else if (isEdge) {
+      storeLink.href = 'https://microsoftedge.microsoft.com/addons/search?developer=SpinTax';
+    } else {
+      storeLink.href = 'https://chromewebstore.google.com/search/301.st';
+    }
+    storeLink.hidden = false;
+  }
+
   const domains = await getDomains();
   renderWatchlist(domains);
   void pollQueueStatus();
