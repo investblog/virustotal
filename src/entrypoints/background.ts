@@ -123,13 +123,12 @@ export default defineBackground(() => {
 
   /** Show queue size on badge globally (no tabId = all tabs) */
   let lastBadgeCount = 0;
-  async function updateQueueBadge(): Promise<void> {
-    const paused = await isPaused();
-    if (paused) return;
+  function updateQueueBadge(): void {
+    // Synchronous check — no async isPaused() gate here.
+    // Pause badge is applied separately by applyPauseBadge().
     const queueSize = queue.length + (processing ? 1 : 0);
     try {
       if (queueSize > 0) {
-        // Flash on count change: briefly white bg, then blue
         if (queueSize !== lastBadgeCount && lastBadgeCount > 0) {
           void actionApi.setBadgeBackgroundColor({ color: '#93c5fd' });
           setTimeout(() => {
@@ -201,13 +200,13 @@ export default defineBackground(() => {
     const item = dequeue(queue);
     if (!item) {
       queueTimer = null;
-      void updateQueueBadge();
+      updateQueueBadge();
       void notifyQueueComplete();
       return;
     }
 
     processing = item.domain;
-    void updateQueueBadge();
+    updateQueueBadge();
 
     try {
 
@@ -338,7 +337,7 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
 
     processing = null;
-    void updateQueueBadge();
+    updateQueueBadge();
     queueTimer = setTimeout(() => {
       queueTimer = null;
       void processQueue();
@@ -347,7 +346,7 @@ export default defineBackground(() => {
     } catch (err) {
       // Ensure queue never gets permanently stuck
       processing = null;
-      void updateQueueBadge();
+      updateQueueBadge();
       queueTimer = setTimeout(() => {
         queueTimer = null;
         void processQueue();
@@ -521,7 +520,7 @@ export default defineBackground(() => {
                 if (enqueue(queue, domain, 'high')) queued += 1;
               }
               if (queued > 0) {
-                void updateQueueBadge();
+                updateQueueBadge();
                 scheduleProcessQueue();
               }
             }
