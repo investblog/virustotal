@@ -730,6 +730,41 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
+/* === Toast notifications === */
+
+.toast-container {
+  position: fixed;
+  bottom: var(--space-3);
+  left: var(--space-3);
+  right: var(--space-3);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+.toast {
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-xs);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  animation: toastIn 200ms ease-out;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.toast--success { border-left: 3px solid var(--success); }
+.toast--warning { border-left: 3px solid var(--warning); }
+.toast--error { border-left: 3px solid var(--danger); }
+.toast--info { border-left: 3px solid var(--info); }
+.toast.is-leaving { animation: toastOut 150ms ease-in forwards; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(8px); } }
+
 /* === Popup mode === */
 
 html[data-popup] body { width: 380px; }

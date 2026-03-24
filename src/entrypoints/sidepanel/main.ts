@@ -7,6 +7,7 @@ import {
   getCheckInterval, saveCheckInterval, isPaused,
 } from '@shared/db';
 import { STORAGE_KEYS as SK_PAUSE } from '@shared/constants';
+import { showToast } from '@shared/ui-helpers';
 import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
@@ -483,16 +484,33 @@ function initPopupMode(): void {
 
 // --- Queue activity indicator ---
 
+let prevPendingCount = 0;
+
 function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
   const nav = document.getElementById('navTabs');
-  const pendingCount = Object.values(domains).filter(d => d.status === 'pending').length;
+  const all = Object.values(domains).filter(d => d.watchlist);
+  const pendingCount = all.filter(d => d.status === 'pending').length;
+
   if (pendingCount > 0) {
     nav?.classList.add('is-loading');
     nav?.setAttribute('data-queue', `Checking ${pendingCount}\u2026`);
   } else {
     nav?.classList.remove('is-loading');
     nav?.removeAttribute('data-queue');
+
+    // Queue just finished — show summary toast
+    if (prevPendingCount > 0) {
+      const mal = all.filter(d => d.status === 'malicious').length;
+      const sus = all.filter(d => d.status === 'suspicious').length;
+      const clean = all.filter(d => d.status === 'clean').length;
+      if (mal > 0 || sus > 0) {
+        showToast(`Check complete: ${mal} malicious, ${sus} suspicious, ${clean} clean`, 'warning');
+      } else {
+        showToast(`Check complete: ${all.length} domains, all clean`, 'success');
+      }
+    }
   }
+  prevPendingCount = pendingCount;
 }
 
 // --- Live updates ---

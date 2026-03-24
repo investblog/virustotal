@@ -1,4 +1,4 @@
-import { el } from '@shared/ui-helpers';
+import { el, showToast } from '@shared/ui-helpers';
 import { parseBulkInput } from '@shared/bulk-parser';
 import { getDomains, getApiUsage } from '@shared/db';
 import { sendMessage } from '@shared/messaging';
@@ -127,18 +127,26 @@ export function openBulkAddDrawer(): void {
   // Add only (no check)
   addOnlyBtn.addEventListener('click', () => {
     if (!lastResult || !lastResult.newDomains.length) return;
+    const count = lastResult.newDomains.length;
     addOnlyBtn.classList.add('btn--loading');
     void sendMessage({ type: 'BULK_ADD', domains: lastResult.newDomains, checkNow: false })
-      .then(() => aside.remove())
+      .then(() => {
+        showToast(`${count} domain${count > 1 ? 's' : ''} added to watchlist`, 'success');
+        aside.remove();
+      })
       .catch(() => aside.remove());
   });
 
   // Add + check now
   addCheckBtn.addEventListener('click', () => {
     if (!lastResult || !lastResult.newDomains.length) return;
+    const count = lastResult.newDomains.length;
     addCheckBtn.classList.add('btn--loading');
     void sendMessage({ type: 'BULK_ADD', domains: lastResult.newDomains, checkNow: true })
-      .then(() => aside.remove())
+      .then(() => {
+        showToast(`${count} domain${count > 1 ? 's' : ''} added \u2014 checking started`, 'info');
+        aside.remove();
+      })
       .catch(() => aside.remove());
   });
 
