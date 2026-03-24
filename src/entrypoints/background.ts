@@ -85,40 +85,51 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
   }
 
-  // Track user-initiated batch operations (not scheduled/ad-hoc)
+  // Track processed domains for batch notification
   let batchProcessed = 0;
+  let batchMalicious = 0;
+  let batchSuspicious = 0;
   let userInitiatedBatch = false;
+
+  function trackCheckResult(status: string): void {
+    batchProcessed += 1;
+    if (status === 'malicious') batchMalicious += 1;
+    if (status === 'suspicious') batchSuspicious += 1;
+  }
 
   async function notifyQueueComplete(): Promise<void> {
     if (batchProcessed === 0 || !userInitiatedBatch) {
       batchProcessed = 0;
+      batchMalicious = 0;
+      batchSuspicious = 0;
       userInitiatedBatch = false;
       return;
     }
     const count = batchProcessed;
+    const mal = batchMalicious;
+    const sus = batchSuspicious;
     batchProcessed = 0;
+    batchMalicious = 0;
+    batchSuspicious = 0;
     userInitiatedBatch = false;
 
+    let message: string;
+    if (mal > 0 || sus > 0) {
+      message = `${count} checked: ${mal} malicious, ${sus} suspicious`;
+    } else {
+      message = `${count} domain${count > 1 ? 's' : ''} checked — all clean`;
+    }
+
     try {
-      const domains = await getDomains();
-      const all = Object.values(domains).filter(d => d.watchlist);
-      const mal = all.filter(d => d.status === 'malicious').length;
-      const sus = all.filter(d => d.status === 'suspicious').length;
-
-      let message: string;
-      if (mal > 0 || sus > 0) {
-        message = `${count} checked: ${mal} malicious, ${sus} suspicious`;
-      } else {
-        message = `${count} domain${count > 1 ? 's' : ''} checked — all clean`;
-      }
-
-      chrome.notifications.create({
+      chrome.notifications.create(`vt-batch-${Date.now()}`, {
         type: 'basic',
         iconUrl: browser.runtime.getURL('/icons/icon-128.png'),
         title: 'VT Domain Monitor',
         message,
+      }, () => {
+        if (chrome.runtime.lastError) { /* notifications suppressed */ }
       });
-    } catch { /* ignore — notifications may not be available */ }
+    } catch { /* notifications API not available */ }
   }
 
   /** Show queue size on badge globally (no tabId = all tabs) */
@@ -255,7 +266,7 @@ export default defineBackground(() => {
       updateQueueBadge();
       await saveDomain(record);
       await incrementApiUsage();
-      batchProcessed += 1;
+      trackCheckResult(status);
     } else {
       switch (result.error.kind) {
         case 'invalid_key':
@@ -308,7 +319,7 @@ export default defineBackground(() => {
           };
           await saveDomain(record);
           await incrementApiUsage();
-          batchProcessed += 1;
+          trackCheckResult('unknown');
           break;
         }
 
@@ -436,6 +447,7 @@ export default defineBackground(() => {
 
       switch (msg.type) {
         case 'CHECK_DOMAIN': {
+          userInitiatedBatch = true;
           const domain = msg.domain;
           enqueue(queue, domain, 'high');
           scheduleProcessQueue();
@@ -538,6 +550,7 @@ export default defineBackground(() => {
         case 'VERIFY_KEY': {
           void (async () => {
             const result = await checkDomain('google.com', msg.key);
+            await incrementApiUsage();
             if (result.ok) {
               await saveApiKey(msg.key);
               sendResponse({ ok: true });
