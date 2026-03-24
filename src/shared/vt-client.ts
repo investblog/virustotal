@@ -31,9 +31,11 @@ function parseWhois(attrs: VtDomainResponse['data']['attributes']): WhoisInfo | 
     ?? extract(/paid-till:\s*(.+)/i);
 
   const nsMatches = whoisText.match(/Name Server:\s*(.+)/gi) || [];
-  const nameServers = nsMatches
-    .map(l => l.replace(/Name Server:\s*/i, '').trim().toLowerCase())
-    .filter(Boolean);
+  const nameServers = [...new Set(
+    nsMatches
+      .map(l => l.replace(/Name Server:\s*/i, '').trim().toLowerCase())
+      .filter(Boolean),
+  )];
 
   if (!registrar && !creation && !expiration && !nameServers.length) return null;
 
