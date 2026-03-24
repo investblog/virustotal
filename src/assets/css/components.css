@@ -96,8 +96,8 @@ body {
 .btn-icon:hover { background: var(--primary-soft); color: var(--text); }
 
 .btn:focus-visible, .btn-icon:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand), transparent 60%);
 }
 
 /* === Inputs === */
@@ -116,10 +116,13 @@ body {
   transition: border-color var(--transition-fast);
 }
 .input::placeholder { color: var(--text-subtle); }
-.input--error { border-color: var(--danger); }
+.input--error,
+.field[data-status='error'] .input { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger), transparent 85%); }
+.field[data-status='success'] .input { border-color: var(--success); }
 .input:focus {
   outline: none;
   border-color: var(--input-border-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand), transparent 80%);
 }
 
 .field {
@@ -231,6 +234,70 @@ body {
 .stat-item--malicious .stat-item__value { color: var(--status-malicious); }
 .stat-item--suspicious .stat-item__value { color: var(--status-suspicious); }
 .stat-item--harmless .stat-item__value { color: var(--status-clean); }
+
+/* === IDN badge (from 301-ui) === */
+
+.idn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.4em;
+  padding: 0.1em 0.35em;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  cursor: help;
+  transition: all var(--transition-md);
+  vertical-align: middle;
+}
+.idn-badge:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* === Detail row (from 301-ui) === */
+
+.detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: var(--fs-sm);
+}
+.detail-row__label { color: var(--text-muted); }
+.detail-row__value { font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+
+/* === Fieldset (from 301-ui) === */
+
+.vt-fieldset {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin: 0;
+}
+.vt-fieldset > legend {
+  padding: 0 var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* === Copy feedback (from 301-ui) === */
+
+.copy-flash { transition: color 0.2s; }
+.copy-flash.is-copied { color: var(--success) !important; }
 
 /* === Stale warning === */
 

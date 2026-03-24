@@ -75,7 +75,8 @@
 
       <!-- Settings -->
       <section class="view" data-view-content="settings" hidden>
-        <div class="settings-section">
+        <fieldset class="vt-fieldset">
+          <legend>API</legend>
           <div class="field">
             <label class="field__label" for="settingsApiKey" data-i18n="apiKeyLabel">VirusTotal API Key</label>
             <div class="domain-form__row">
@@ -84,9 +85,11 @@
             </div>
           </div>
           <div class="inline-msg" id="settingsKeyStatus"></div>
-        </div>
+          <div class="api-usage" id="apiUsageDisplay" data-i18n="apiUsageLabel">API usage today</div>
+        </fieldset>
 
-        <div class="settings-section">
+        <fieldset class="vt-fieldset">
+          <legend>Schedule</legend>
           <div class="field">
             <label class="field__label" for="settingsInterval" data-i18n="checkIntervalLabel">Check interval</label>
             <select id="settingsInterval" class="input">
@@ -96,16 +99,13 @@
               <option value="168" data-i18n="interval7d">7 days</option>
             </select>
           </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="api-usage" id="apiUsageDisplay" data-i18n="apiUsageLabel">API usage today</div>
-        </div>
-
-        <div class="settings-section">
           <button id="btnCheckAll" class="btn btn--outline" type="button" data-i18n="checkAllBtn">Check all now</button>
+        </fieldset>
+
+        <fieldset class="vt-fieldset">
+          <legend>Help</legend>
           <button id="btnSetupGuide" class="btn btn--ghost" type="button" data-i18n="setupGuideBtn">Setup guide</button>
-        </div>
+        </fieldset>
       </section>
 
     </main>

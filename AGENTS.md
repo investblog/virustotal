@@ -27,6 +27,9 @@ This is a developer tool for webmasters, not a consumer antivirus.
 - `AGENTS.md` - current implementation contract for coding agents
 - `CLAUDE.md` - short technical snapshot auto-loaded into agent context
 - `W:\Projects\fastweb` - reference for WXT structure, CSS system, messaging, and sidepanel patterns
+- `W:\Projects\301-ui` - design system: drawers, domain display (IDN, badges), fieldsets, detail grids, copy feedback, bulk operations
+- `W:\Projects\redirect-inspector` - drawer factory pattern, analysis cards
+- `W:\Projects\cloudflare-tools` - bulk domain parser, IDN policy, live preflight
 
 ## Tech Stack
 

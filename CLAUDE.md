@@ -127,6 +127,21 @@ src/
 - `GET_QUEUE_STATUS`
 - `OPEN_SIDEPANEL`
 
+## Design References
+
+Before inventing new UI patterns, check these existing projects for proven solutions:
+
+- **`W:\Projects\301-ui`** — Design system. Source of truth for:
+  - `static/css/drawers.css` — drawer panel structure, slide-in animation, footer patterns
+  - `static/css/tables.css` — domain cells, IDN badges, provider labels, status badges
+  - `static/css/site.css` — fieldset/legend, detail-row grid, chip buttons, copy feedback
+  - `src/utils/idn.ts` — IDN display formatting (Unicode + punycode)
+  - `src/ui/drawer-utils.ts` — copy button with green flash, open-in-new-tab
+  - `src/domains/` — domain search, bulk operations, table rendering
+- **`W:\Projects\fastweb`** — WXT extension patterns: messaging, theme, i18n, sidebar/popup
+- **`W:\Projects\redirect-inspector`** — drawer factory (`createDrawer`), analysis cards, el() helper
+- **`W:\Projects\cloudflare-tools`** — bulk domain parser, IDN policy, live count/preflight
+
 ## Notes
 
 - `SPEC.md` is the v1 product contract

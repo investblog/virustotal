@@ -101,7 +101,13 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     name.className = 'domain-card__name';
     const unicode = toUnicode(record.domain);
     name.textContent = unicode;
-    if (unicode !== record.domain) name.title = record.domain;
+    if (unicode !== record.domain) {
+      const idnBadge = document.createElement('span');
+      idnBadge.className = 'idn-badge';
+      idnBadge.textContent = 'IDN';
+      idnBadge.title = record.domain;
+      name.appendChild(idnBadge);
+    }
 
     const meta = document.createElement('div');
     meta.className = 'domain-card__meta';
@@ -196,8 +202,14 @@ async function renderCurrentSite(): Promise<void> {
   const domainText = document.createElement('span');
   const domainUnicode = toUnicode(domain);
   domainText.textContent = domainUnicode;
-  if (domainUnicode !== domain) domainText.title = domain;
   header.appendChild(domainText);
+  if (domainUnicode !== domain) {
+    const idnBadge = document.createElement('span');
+    idnBadge.className = 'idn-badge';
+    idnBadge.textContent = 'IDN';
+    idnBadge.title = domain;
+    header.appendChild(idnBadge);
+  }
   container.appendChild(header);
 
   // No API key → setup CTA
@@ -228,38 +240,41 @@ async function renderCurrentSite(): Promise<void> {
     statusEl.textContent = statusLabel(isStale(record) ? 'unknown' : record.status);
     container.appendChild(statusEl);
 
-    // Stats grid
-    const grid = document.createElement('div');
-    grid.className = 'stats-grid';
-    const stats = [
-      { label: _('statMalicious', 'Malicious'), value: record.vt_stats.malicious, cls: 'stat-item--malicious' },
-      { label: _('statSuspicious', 'Suspicious'), value: record.vt_stats.suspicious, cls: 'stat-item--suspicious' },
-      { label: _('statHarmless', 'Harmless'), value: record.vt_stats.harmless, cls: 'stat-item--harmless' },
-      { label: _('statUndetected', 'Undetected'), value: record.vt_stats.undetected, cls: '' },
-    ];
-    for (const s of stats) {
-      const item = document.createElement('div');
-      item.className = `stat-item ${s.cls}`;
-      item.innerHTML = `<div class="stat-item__label">${s.label}</div><div class="stat-item__value">${s.value}</div>`;
-      grid.appendChild(item);
-    }
-    container.appendChild(grid);
+    // Detail list (301-ui pattern)
+    const details = document.createElement('div');
+    details.className = 'detail-list';
 
-    // Dates
-    const dates = document.createElement('div');
-    dates.className = 'current-site__dates';
+    const detailRows: { label: string; value: string; cls?: string }[] = [
+      { label: _('statMalicious', 'Malicious'), value: String(record.vt_stats.malicious), cls: record.vt_stats.malicious > 0 ? 'color: var(--status-malicious)' : '' },
+      { label: _('statSuspicious', 'Suspicious'), value: String(record.vt_stats.suspicious), cls: record.vt_stats.suspicious > 0 ? 'color: var(--status-suspicious)' : '' },
+      { label: _('statHarmless', 'Harmless'), value: String(record.vt_stats.harmless), cls: 'color: var(--status-clean)' },
+      { label: _('statUndetected', 'Undetected'), value: String(record.vt_stats.undetected) },
+    ];
+
     if (record.last_checked) {
-      const el = document.createElement('span');
-      el.dataset.timestamp = String(record.last_checked);
-      el.textContent = `Checked: ${timeAgo(record.last_checked)}`;
-      dates.appendChild(el);
+      detailRows.push({ label: 'Checked', value: timeAgo(record.last_checked) });
     }
     if (record.vt_last_analysis_date) {
-      const el = document.createElement('span');
-      el.textContent = `VT scanned: ${new Date(record.vt_last_analysis_date).toLocaleDateString()}`;
-      dates.appendChild(el);
+      detailRows.push({ label: 'VT scanned', value: new Date(record.vt_last_analysis_date).toLocaleDateString() });
     }
-    container.appendChild(dates);
+
+    for (const row of detailRows) {
+      const r = document.createElement('div');
+      r.className = 'detail-row';
+      const label = document.createElement('span');
+      label.className = 'detail-row__label';
+      label.textContent = row.label;
+      const value = document.createElement('span');
+      value.className = 'detail-row__value';
+      value.textContent = row.value;
+      if (row.cls) value.style.cssText = row.cls;
+      if (row.label === 'Checked') {
+        value.dataset.timestamp = String(record.last_checked);
+      }
+      r.append(label, value);
+      details.appendChild(r);
+    }
+    container.appendChild(details);
 
     if (isStale(record)) {
       const warn = document.createElement('div');
