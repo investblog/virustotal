@@ -49,6 +49,8 @@ export default defineBackground(() => {
     if (pauseResumeTimer) { clearTimeout(pauseResumeTimer); pauseResumeTimer = null; }
     try { void actionApi.setBadgeText({ text: '' }); } catch { /* ignore */ }
     scheduleProcessQueue();
+    // Restore per-tab badge for active tab
+    void refreshActiveBadge();
   }
 
   function scheduleAutoResume(until: number): void {
@@ -122,11 +124,11 @@ export default defineBackground(() => {
   /** Show queue size on badge globally (no tabId = all tabs) */
   async function updateQueueBadge(): Promise<void> {
     const paused = await isPaused();
-    if (paused) return; // pause badge takes priority
+    if (paused) return;
     const queueSize = queue.length + (processing ? 1 : 0);
     try {
-      if (queueSize > 0 || queueTimer) {
-        void actionApi.setBadgeText({ text: String(Math.max(queueSize, 1)) });
+      if (queueSize > 0) {
+        void actionApi.setBadgeText({ text: String(queueSize) });
         void actionApi.setBadgeBackgroundColor({ color: '#3b82f6' });
       } else {
         void actionApi.setBadgeText({ text: '' });
@@ -136,8 +138,7 @@ export default defineBackground(() => {
 
   async function updateBadgeForTab(tabId: number): Promise<void> {
     // Don't override global queue badge with per-tab status
-    // Check queue + processing + timer (timer means next item coming in 15s)
-    if (queue.length > 0 || processing || queueTimer) return;
+    if (queue.length > 0 || processing) return;
 
     let url: string | undefined;
     try {
@@ -155,8 +156,9 @@ export default defineBackground(() => {
     const badge = computeBadge(record || null, queued);
     applyBadge(tabId, badge);
 
-    // Ad-hoc: enqueue if unknown, not paused, and budget allows
-    if (!record && !queued && !(await isPaused())) {
+    // Ad-hoc: enqueue if unknown, has API key, not paused, and budget allows
+    const hasKey = !!(await getApiKey());
+    if (!record && !queued && hasKey && !(await isPaused())) {
       const usage = await resetApiUsageIfNewDay();
       if (canEnqueue('low', usage) && !isInCooldown(record)) {
         if (enqueue(queue, domain, 'low')) {

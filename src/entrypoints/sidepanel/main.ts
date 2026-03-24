@@ -553,54 +553,52 @@ function initPopupMode(): void {
   });
 }
 
-// --- Queue activity indicator ---
+// --- Queue activity indicator (from background, not storage) ---
 
-let prevPendingCount = 0;
+let prevQueueLength = 0;
 
-function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
+async function pollQueueStatus(): Promise<void> {
   const footerEl = document.getElementById('panelFooter');
   const queueBadge = document.getElementById('footerQueue');
-  const tokensBadge = document.getElementById('footerTokens');
-  const all = Object.values(domains).filter(d => d.watchlist);
-  const pendingCount = all.filter(d => d.status === 'pending').length;
 
-  // Nav loading bar
-  if (pendingCount > 0) {
-    footerEl?.classList.add('is-loading');
-  } else {
-    footerEl?.classList.remove('is-loading');
+  try {
+    const status = await sendMessage({ type: 'GET_QUEUE_STATUS' });
+    const queueLength = status.length + (status.processing ? 1 : 0);
 
-    // Queue just finished — show summary toast
-    if (prevPendingCount > 0) {
-      const mal = all.filter(d => d.status === 'malicious').length;
-      const sus = all.filter(d => d.status === 'suspicious').length;
-      const clean = all.filter(d => d.status === 'clean').length;
-      if (mal > 0 || sus > 0) {
-        showToast(`Check complete: ${mal} malicious, ${sus} suspicious, ${clean} clean`, 'warning');
-      } else {
-        showToast(`Check complete: ${all.length} domains, all clean`, 'success');
+    if (queueLength > 0) {
+      footerEl?.classList.add('is-loading');
+      if (queueBadge) {
+        queueBadge.textContent = String(queueLength);
+        queueBadge.title = `${queueLength} in queue`;
+        queueBadge.hidden = false;
+      }
+    } else {
+      footerEl?.classList.remove('is-loading');
+      if (queueBadge) queueBadge.hidden = true;
+
+      // Queue just finished
+      if (prevQueueLength > 0) {
+        const domains = await getDomains();
+        const all = Object.values(domains).filter(d => d.watchlist);
+        const mal = all.filter(d => d.status === 'malicious').length;
+        const sus = all.filter(d => d.status === 'suspicious').length;
+        if (mal > 0 || sus > 0) {
+          showToast(`Check complete: ${mal} malicious, ${sus} suspicious`, 'warning');
+        } else {
+          showToast(`Check complete: all clean`, 'success');
+        }
       }
     }
-  }
-  prevPendingCount = pendingCount;
+    prevQueueLength = queueLength;
+  } catch { /* background not ready */ }
+}
 
-  // Footer queue badge
-  if (queueBadge) {
-    if (pendingCount > 0) {
-      queueBadge.textContent = String(pendingCount);
-      queueBadge.title = `${pendingCount} in queue`;
-      queueBadge.hidden = false;
-    } else {
-      queueBadge.hidden = true;
-    }
-  }
-
-  // Footer tokens badge (async update)
+function updateTokensBadge(): void {
+  const tokensBadge = document.getElementById('footerTokens');
+  if (!tokensBadge) return;
   void getApiUsage().then(usage => {
-    if (tokensBadge) {
-      tokensBadge.textContent = String(usage.count);
-      tokensBadge.title = `${usage.count} / 500 API requests today`;
-    }
+    tokensBadge.textContent = String(usage.count);
+    tokensBadge.title = `${usage.count} / 500 API requests today`;
   });
 }
 
@@ -611,10 +609,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
     const newDomains = (changes[STORAGE_KEYS.DOMAINS].newValue || {}) as Record<string, DomainRecord>;
     renderWatchlist(newDomains);
     void renderCurrentSite();
-    updateQueueIndicator(newDomains);
+    void pollQueueStatus();
   }
   if (area === 'local' && changes[STORAGE_KEYS.API_USAGE]) {
     void updateUsageDisplay();
+    updateTokensBadge();
+    void pollQueueStatus(); // usage change = a check just completed
   }
   if (area === 'sync' && changes[STORAGE_KEYS.VT_API_KEY]) {
     const keyInput = document.getElementById('settingsApiKey') as HTMLInputElement | null;
@@ -658,7 +658,8 @@ void (async function boot(): Promise<void> {
 
   const domains = await getDomains();
   renderWatchlist(domains);
-  updateQueueIndicator(domains);
+  void pollQueueStatus();
+  updateTokensBadge();
   await renderCurrentSite();
   await initSettings();
 

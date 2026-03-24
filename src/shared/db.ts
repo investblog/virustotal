@@ -62,7 +62,7 @@ export function saveBulkDomains(domains: string[], now: number): Promise<void> {
         vt_last_analysis_date: prev?.vt_last_analysis_date ?? null,
         vt_stats: prev?.vt_stats ?? null,
         vt_vendors: prev?.vt_vendors ?? null,
-        status: prev?.status ?? 'pending',
+        status: prev?.status ?? 'unknown',
         disputes: prev?.disputes,
       };
     }
