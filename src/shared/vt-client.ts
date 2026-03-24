@@ -1,10 +1,48 @@
-import type { VtStats, VtVendorResult, VtVendorCategory, VtDomainResponse } from './types';
+import type { VtStats, VtVendorResult, VtVendorCategory, VtDomainResponse, WhoisInfo } from './types';
 import { VT_API_BASE } from './constants';
 
 export interface VtCheckResult {
   stats: VtStats;
   lastAnalysisDate: number;
   vendors: VtVendorResult[];
+  whois: WhoisInfo | null;
+}
+
+function parseWhois(attrs: VtDomainResponse['data']['attributes']): WhoisInfo | null {
+  const raw = attrs.whois;
+  if (!raw) return null;
+  const whoisText = raw;
+
+  function extract(pattern: RegExp): string | null {
+    const m = whoisText.match(pattern);
+    return m?.[1]?.trim() || null;
+  }
+
+  const registrar = attrs.registrar as string | undefined
+    ?? extract(/Registrar:\s*(.+)/i)
+    ?? extract(/Sponsoring Registrar:\s*(.+)/i);
+
+  const creation = extract(/Creation Date:\s*(.+)/i)
+    ?? extract(/Created Date:\s*(.+)/i)
+    ?? extract(/created:\s*(.+)/i);
+
+  const expiration = extract(/Expir(?:y|ation) Date:\s*(.+)/i)
+    ?? extract(/Registry Expiry Date:\s*(.+)/i)
+    ?? extract(/paid-till:\s*(.+)/i);
+
+  const nsMatches = whoisText.match(/Name Server:\s*(.+)/gi) || [];
+  const nameServers = nsMatches
+    .map(l => l.replace(/Name Server:\s*/i, '').trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!registrar && !creation && !expiration && !nameServers.length) return null;
+
+  return {
+    registrar: registrar || null,
+    creation_date: creation || null,
+    expiration_date: expiration || null,
+    name_servers: nameServers,
+  };
 }
 
 export type VtError =
@@ -57,6 +95,7 @@ export async function checkDomain(domain: string, apiKey: string): Promise<VtRes
         stats: attrs.last_analysis_stats,
         lastAnalysisDate: attrs.last_analysis_date * 1000,
         vendors,
+        whois: parseWhois(attrs),
       },
     };
   } catch (err) {

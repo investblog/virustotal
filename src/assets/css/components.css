@@ -515,6 +515,32 @@ select.input {
 }
 .freshness-chip--stale { color: var(--status-suspicious); }
 
+/* WHOIS chips */
+.inspect-card__whois {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.whois-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+  cursor: default;
+}
+.whois-chip svg { flex-shrink: 0; }
+.whois-chip--expired {
+  color: var(--status-malicious);
+  border-color: var(--status-malicious);
+  background: color-mix(in srgb, var(--status-malicious) 10%, transparent);
+}
+
 /* === Settings section === */
 
 .settings-section {

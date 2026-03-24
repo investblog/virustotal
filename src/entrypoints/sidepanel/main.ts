@@ -403,6 +403,49 @@ async function renderCurrentSite(): Promise<void> {
     }
   }
 
+  // WHOIS row (compact icon chips)
+  if (record?.whois) {
+    const whoisRow = document.createElement('div');
+    whoisRow.className = 'inspect-card__whois';
+
+    const w = record.whois;
+    if (w.registrar) {
+      const chip = document.createElement('span');
+      chip.className = 'whois-chip';
+      chip.title = `Registrar: ${w.registrar}`;
+      chip.innerHTML = `<svg width="12" height="12"><use href="#ico-dns"/></svg> ${w.registrar.split(',')[0].substring(0, 20)}`;
+      whoisRow.appendChild(chip);
+    }
+    if (w.creation_date) {
+      const date = new Date(w.creation_date);
+      const isValid = !isNaN(date.getTime());
+      const chip = document.createElement('span');
+      chip.className = 'whois-chip';
+      chip.title = `Created: ${w.creation_date}`;
+      chip.innerHTML = `<svg width="12" height="12"><use href="#ico-calendar-clock"/></svg> ${isValid ? date.getFullYear() : w.creation_date.substring(0, 10)}`;
+      whoisRow.appendChild(chip);
+    }
+    if (w.expiration_date) {
+      const date = new Date(w.expiration_date);
+      const isValid = !isNaN(date.getTime());
+      const isExpired = isValid && date.getTime() < Date.now();
+      const chip = document.createElement('span');
+      chip.className = `whois-chip${isExpired ? ' whois-chip--expired' : ''}`;
+      chip.title = `Expires: ${w.expiration_date}${isExpired ? ' (EXPIRED)' : ''}`;
+      chip.innerHTML = `<svg width="12" height="12"><use href="#ico-clock"/></svg> ${isValid ? date.toLocaleDateString() : w.expiration_date.substring(0, 10)}`;
+      whoisRow.appendChild(chip);
+    }
+    if (w.name_servers.length > 0) {
+      const chip = document.createElement('span');
+      chip.className = 'whois-chip';
+      chip.title = `NS: ${w.name_servers.join(', ')}`;
+      chip.textContent = `NS: ${w.name_servers.length}`;
+      whoisRow.appendChild(chip);
+    }
+
+    card.appendChild(whoisRow);
+  }
+
   // Row 3: actions toolbar
   const toolbar = document.createElement('div');
   toolbar.className = 'inspect-card__toolbar';

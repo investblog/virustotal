@@ -249,6 +249,7 @@ export default defineBackground(() => {
         vt_vendors: result.data.vendors.length > 0 ? result.data.vendors : null,
         status,
         disputes: existing?.disputes,
+        whois: result.data.whois ?? existing?.whois,
       };
       await saveDomain(record);
       await incrementApiUsage();

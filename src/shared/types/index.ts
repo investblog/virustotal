@@ -27,6 +27,7 @@ export interface DomainRecord {
   vt_vendors: VtVendorResult[] | null;
   status: DomainStatus;
   disputes?: Record<string, DisputeStatus>;
+  whois?: WhoisInfo;
 }
 
 export interface ApiUsage {
@@ -46,6 +47,13 @@ export type ThemePreference = Theme | 'auto';
 export type CheckInterval = 12 | 24 | 72 | 168;
 export type RescanPolicy = 'never' | 'stale30' | 'stale7' | 'always';
 
+export interface WhoisInfo {
+  registrar: string | null;
+  creation_date: string | null;
+  expiration_date: string | null;
+  name_servers: string[];
+}
+
 export interface VtDomainResponse {
   data: {
     attributes: {
@@ -57,6 +65,10 @@ export interface VtDomainResponse {
         method?: string;
         engine_name?: string;
       }>;
+      registrar?: string;
+      creation_date?: number;
+      last_update_date?: number;
+      whois?: string;
     };
   };
 }
