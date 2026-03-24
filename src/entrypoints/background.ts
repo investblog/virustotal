@@ -82,6 +82,21 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
   }
 
+  /** Show queue size on badge globally (no tabId = all tabs) */
+  async function updateQueueBadge(): Promise<void> {
+    const paused = await isPaused();
+    if (paused) return; // pause badge takes priority
+    const queueSize = queue.length + (processing ? 1 : 0);
+    try {
+      if (queueSize > 0) {
+        void actionApi.setBadgeText({ text: String(queueSize) });
+        void actionApi.setBadgeBackgroundColor({ color: '#3b82f6' });
+      } else {
+        void actionApi.setBadgeText({ text: '' });
+      }
+    } catch { /* ignore */ }
+  }
+
   async function updateBadgeForTab(tabId: number): Promise<void> {
     let url: string | undefined;
     try {
@@ -131,9 +146,10 @@ export default defineBackground(() => {
     if (processing) return;
 
     const item = dequeue(queue);
-    if (!item) { queueTimer = null; return; }
+    if (!item) { queueTimer = null; void updateQueueBadge(); return; }
 
     processing = item.domain;
+    void updateQueueBadge();
 
     const apiKey = await getApiKey();
     if (!apiKey) {
@@ -243,6 +259,7 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
 
     processing = null;
+    void updateQueueBadge();
     queueTimer = setTimeout(() => {
       queueTimer = null;
       void processQueue();
@@ -404,7 +421,10 @@ export default defineBackground(() => {
             await new Promise<void>(resolve => {
               chrome.storage.local.set({ domains: existing }, resolve);
             });
-            if (msg.checkNow) scheduleProcessQueue();
+            if (msg.checkNow) {
+              void updateQueueBadge();
+              scheduleProcessQueue();
+            }
             await refreshActiveBadge();
             sendResponse({ ok: true });
           })();
