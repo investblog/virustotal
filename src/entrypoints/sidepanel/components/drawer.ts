@@ -40,22 +40,20 @@ export function createDrawer(title: string, onClose: () => void): DrawerElements
   panel.append(header, body, footer);
   aside.append(overlay, panel);
 
-  // Close handlers
+  // Escape key handler (registered once, cleaned up in close)
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'Escape') close();
+  }
+
+  // Single close path — always cleans up listener
   function close(): void {
+    document.removeEventListener('keydown', onKeyDown);
     aside.remove();
     onClose();
   }
 
   overlay.addEventListener('click', close);
   closeBtn.addEventListener('click', close);
-
-  // Escape key
-  function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
-      close();
-      document.removeEventListener('keydown', onKeyDown);
-    }
-  }
   document.addEventListener('keydown', onKeyDown);
 
   return { aside, body, footer };

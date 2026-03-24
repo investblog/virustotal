@@ -204,7 +204,7 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
         void sendMessage({ type: 'RESCAN_DOMAIN', domain: record.domain }).then(res => {
           rescanBtn.classList.remove('btn--loading');
           if (res.ok) {
-            showToast(`${record.domain}: rescan complete`, 'success');
+            showToast(`${record.domain}: rescan queued, checking shortly`, 'info');
           } else {
             showToast(`Rescan failed: ${res.error ?? 'unknown'}`, 'error');
           }

@@ -5,7 +5,7 @@ import type { RequestMessage } from '@shared/messaging/protocol';
 import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET, PAUSE_DURATION_MS, STALE_THRESHOLD_MS } from '@shared/constants';
 import { extractDomain } from '@shared/domain-utils';
 import {
-  getDomains, getDomain, saveDomain, removeDomain,
+  getDomains, getDomain, saveDomain, removeDomain, saveBulkDomains,
   getWatchlistDomains, getApiKey, saveApiKey,
   getCheckInterval, getApiUsage, incrementApiUsage, resetApiUsageIfNewDay,
   getPauseUntil, setPauseUntil, isPaused,
@@ -83,13 +83,19 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
   }
 
-  // Track how many items were processed in this batch
+  // Track user-initiated batch operations (not scheduled/ad-hoc)
   let batchProcessed = 0;
+  let userInitiatedBatch = false;
 
   async function notifyQueueComplete(): Promise<void> {
-    if (batchProcessed === 0) return;
+    if (batchProcessed === 0 || !userInitiatedBatch) {
+      batchProcessed = 0;
+      userInitiatedBatch = false;
+      return;
+    }
     const count = batchProcessed;
     batchProcessed = 0;
+    userInitiatedBatch = false;
 
     try {
       const domains = await getDomains();
@@ -204,9 +210,12 @@ export default defineBackground(() => {
       needsRescan = (Date.now() - existing.vt_last_analysis_date) > threshold;
     }
 
-    const result = needsRescan
-      ? await rescanDomain(item.domain, apiKey)
-      : await checkDomain(item.domain, apiKey);
+    // If rescan needed, POST analyse first (costs 1 extra request), then GET
+    if (needsRescan) {
+      await rescanDomain(item.domain, apiKey);
+      await incrementApiUsage();
+    }
+    const result = await checkDomain(item.domain, apiKey);
 
     if (result.ok) {
       retryCount.delete(item.domain);
@@ -437,6 +446,7 @@ export default defineBackground(() => {
 
         case 'CHECK_ALL': {
           void (async () => {
+            userInitiatedBatch = true;
             const domains = await getWatchlistDomains();
             for (const d of domains) {
               enqueue(queue, d.domain, 'high');
@@ -452,22 +462,11 @@ export default defineBackground(() => {
             const apiKey = await getApiKey();
             if (!apiKey) { sendResponse({ ok: false, error: 'no_key' }); return; }
             const result = await rescanDomain(msg.domain, apiKey);
+            await incrementApiUsage();
             if (result.ok) {
-              const existing = await getDomain(msg.domain);
-              const status = computeStatus(result.data.stats);
-              const record: DomainRecord = {
-                domain: msg.domain,
-                watchlist: existing?.watchlist ?? false,
-                added_at: existing?.added_at ?? Date.now(),
-                last_checked: Date.now(),
-                vt_last_analysis_date: result.data.lastAnalysisDate,
-                vt_stats: result.data.stats,
-                vt_vendors: result.data.vendors.length > 0 ? result.data.vendors : null,
-                status,
-                disputes: existing?.disputes,
-              };
-              await saveDomain(record);
-              await incrementApiUsage();
+              // Rescan queued at VT — schedule a follow-up check to get fresh data
+              enqueue(queue, msg.domain, 'high');
+              scheduleProcessQueue();
               await refreshActiveBadge();
               sendResponse({ ok: true });
             } else {
@@ -479,32 +478,24 @@ export default defineBackground(() => {
 
         case 'BULK_ADD': {
           void (async () => {
-            const existing = await getDomains();
+            if (msg.checkNow) userInitiatedBatch = true;
             const now = Date.now();
-            for (const domain of msg.domains) {
-              const prev = existing[domain];
-              existing[domain] = {
-                domain,
-                watchlist: true,
-                added_at: prev?.added_at ?? now,
-                last_checked: prev?.last_checked ?? 0,
-                vt_last_analysis_date: prev?.vt_last_analysis_date ?? null,
-                vt_stats: prev?.vt_stats ?? null,
-                vt_vendors: prev?.vt_vendors ?? null,
-                status: prev?.status ?? 'pending',
-                disputes: prev?.disputes,
-              };
-              if (msg.checkNow) {
-                enqueue(queue, domain, 'high');
-              }
-            }
-            // Single batch write
-            await new Promise<void>(resolve => {
-              chrome.storage.local.set({ domains: existing }, resolve);
-            });
+            await saveBulkDomains(msg.domains, now);
+
             if (msg.checkNow) {
-              void updateQueueBadge();
-              scheduleProcessQueue();
+              const usage = await resetApiUsageIfNewDay();
+              const maxBatch = 20;
+              let queued = 0;
+              for (const domain of msg.domains) {
+                if (queued >= maxBatch) break;
+                const projectedCount = usage.count + queue.length + queued;
+                if (projectedCount >= BUDGET.WATCHLIST_RESERVE) break;
+                if (enqueue(queue, domain, 'high')) queued += 1;
+              }
+              if (queued > 0) {
+                void updateQueueBadge();
+                scheduleProcessQueue();
+              }
             }
             await refreshActiveBadge();
             sendResponse({ ok: true });

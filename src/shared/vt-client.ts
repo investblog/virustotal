@@ -67,11 +67,16 @@ export async function checkDomain(domain: string, apiKey: string): Promise<VtRes
   }
 }
 
+export type RescanResult =
+  | { ok: true; queued: true }
+  | { ok: false; error: VtError };
+
 /**
  * Request VT to rescan a domain. POST /domains/{domain}/analyse
- * Returns true on success (202), false on error.
+ * Returns { queued: true } on success — VT will re-analyse asynchronously.
+ * Caller should re-check the domain later (via normal queue) for fresh data.
  */
-export async function rescanDomain(domain: string, apiKey: string): Promise<VtResult> {
+export async function rescanDomain(domain: string, apiKey: string): Promise<RescanResult> {
   try {
     const res = await fetch(`${VT_API_BASE}/domains/${encodeURIComponent(domain)}/analyse`, {
       method: 'POST',
@@ -82,11 +87,7 @@ export async function rescanDomain(domain: string, apiKey: string): Promise<VtRe
     if (res.status === 429) return { ok: false, error: { kind: 'rate_limited' } };
     if (res.status === 404) return { ok: false, error: { kind: 'not_found' } };
 
-    // 200 or 202 = success — VT queued the rescan
-    if (res.ok) {
-      // Re-fetch fresh results after rescan is queued
-      return checkDomain(domain, apiKey);
-    }
+    if (res.ok) return { ok: true, queued: true };
 
     return { ok: false, error: { kind: 'network', message: `HTTP ${res.status}` } };
   } catch (err) {

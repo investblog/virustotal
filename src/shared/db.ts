@@ -49,6 +49,29 @@ export function removeDomain(domain: string): Promise<void> {
   });
 }
 
+export function saveBulkDomains(domains: string[], now: number): Promise<void> {
+  return withDomainLock(async () => {
+    const map = await getDomains();
+    for (const domain of domains) {
+      const prev = map[domain];
+      map[domain] = {
+        domain,
+        watchlist: true,
+        added_at: prev?.added_at ?? now,
+        last_checked: prev?.last_checked ?? 0,
+        vt_last_analysis_date: prev?.vt_last_analysis_date ?? null,
+        vt_stats: prev?.vt_stats ?? null,
+        vt_vendors: prev?.vt_vendors ?? null,
+        status: prev?.status ?? 'pending',
+        disputes: prev?.disputes,
+      };
+    }
+    await new Promise<void>(resolve => {
+      chrome.storage.local.set({ [STORAGE_KEYS.DOMAINS]: map }, resolve);
+    });
+  });
+}
+
 export async function getWatchlistDomains(): Promise<DomainRecord[]> {
   const map = await getDomains();
   return Object.values(map).filter(d => d.watchlist);

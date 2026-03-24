@@ -87,10 +87,16 @@ document.getElementById('btnAddDomain')!.addEventListener('click', () => {
     domainStatus.className = 'domain-status inline-msg is-visible inline-msg--error';
     return;
   }
-  void sendMessage({ type: 'ADD_DOMAIN', domain }).then(() => {
-    showStep(3); // done
+  void sendMessage({ type: 'ADD_DOMAIN', domain }).then((res) => {
+    if (res.ok) {
+      showStep(3); // done
+    } else {
+      domainStatus.textContent = 'Failed to add domain. Please try again.';
+      domainStatus.className = 'domain-status inline-msg is-visible inline-msg--error';
+    }
   }).catch(() => {
-    showStep(3);
+    domainStatus.textContent = 'Connection error. Is the extension loaded?';
+    domainStatus.className = 'domain-status inline-msg is-visible inline-msg--error';
   });
 });
 
