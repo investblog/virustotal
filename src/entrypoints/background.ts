@@ -197,6 +197,8 @@ export default defineBackground(() => {
     processing = item.domain;
     void updateQueueBadge();
 
+    try {
+
     const apiKey = await getApiKey();
     if (!apiKey) {
       processing = null;
@@ -205,13 +207,13 @@ export default defineBackground(() => {
 
     // Smart Check: decide GET vs POST+GET based on rescan policy
     const policy = await getRescanPolicy();
-    const existing = await getDomain(item.domain);
+    const existingForPolicy = await getDomain(item.domain);
     let needsRescan = false;
     if (policy === 'always') {
       needsRescan = true;
-    } else if (policy !== 'never' && existing?.vt_last_analysis_date) {
+    } else if (policy !== 'never' && existingForPolicy?.vt_last_analysis_date) {
       const threshold = policy === 'stale7' ? 7 * 24 * 60 * 60 * 1000 : STALE_THRESHOLD_MS;
-      needsRescan = (Date.now() - existing.vt_last_analysis_date) > threshold;
+      needsRescan = (Date.now() - existingForPolicy.vt_last_analysis_date) > threshold;
     }
 
     // If rescan needed, POST analyse first (costs 1 extra request), then GET
@@ -328,6 +330,16 @@ export default defineBackground(() => {
       queueTimer = null;
       void processQueue();
     }, THROTTLE_MS);
+
+    } catch (err) {
+      // Ensure queue never gets permanently stuck
+      processing = null;
+      void updateQueueBadge();
+      queueTimer = setTimeout(() => {
+        queueTimer = null;
+        void processQueue();
+      }, THROTTLE_MS);
+    }
   }
 
   // --- Watchlist tick ---

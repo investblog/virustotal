@@ -655,7 +655,8 @@ select.input {
 .dispute-status {
   width: auto;
   font-size: 11px;
-  padding: 2px 6px;
+  padding: var(--space-1) var(--space-2);
+  min-height: var(--control-min-height);
 }
 .dispute-status--none { color: var(--text-muted); }
 .dispute-status--disputed { color: var(--status-suspicious); border-color: var(--status-suspicious); }
