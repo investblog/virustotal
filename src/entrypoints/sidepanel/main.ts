@@ -135,8 +135,9 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     });
 
     const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn btn--sm btn--ghost';
-    removeBtn.textContent = '\u00d7';
+    removeBtn.className = 'btn-icon';
+    removeBtn.style.cssText = 'width: 24px; height: 24px;';
+    removeBtn.innerHTML = '<svg width="14" height="14"><use href="#ico-close"/></svg>';
     removeBtn.title = _('removeBtn', 'Remove');
     removeBtn.addEventListener('click', () => {
       void sendMessage({ type: 'REMOVE_DOMAIN', domain: record.domain });
