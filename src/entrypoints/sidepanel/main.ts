@@ -157,21 +157,10 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       checked.textContent = 'in queue\u2026';
       checked.style.color = 'var(--status-pending)';
     } else if (isStale(record) && record.vt_last_analysis_date) {
-      // Stale: show VT scan date + rescan link
-      const staleText = document.createElement('span');
-      staleText.textContent = `VT scan: ${new Date(record.vt_last_analysis_date).toLocaleDateString()}`;
-      staleText.style.color = 'var(--status-suspicious)';
-      staleText.title = record.last_checked ? `Checked: ${timeAgo(record.last_checked)}` : '';
-      meta.appendChild(staleText);
-
-      const rescanLink = document.createElement('a');
-      rescanLink.className = 'stale-warning';
-      rescanLink.href = `https://www.virustotal.com/gui/domain/${record.domain}`;
-      rescanLink.target = '_blank';
-      rescanLink.rel = 'noreferrer';
-      rescanLink.textContent = 'Rescan on VT \u2197';
-      rescanLink.style.cursor = 'pointer';
-      meta.appendChild(rescanLink);
+      // Stale: show VT scan date (our check time in tooltip)
+      checked.textContent = `VT scan: ${new Date(record.vt_last_analysis_date).toLocaleDateString()}`;
+      checked.style.color = 'var(--status-suspicious)';
+      checked.title = record.last_checked ? `Checked: ${timeAgo(record.last_checked)}` : '';
     } else if (record.last_checked) {
       checked.dataset.timestamp = String(record.last_checked);
       checked.textContent = timeAgo(record.last_checked);
@@ -192,6 +181,18 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       checkBtn.classList.add('btn--loading');
       void sendMessage({ type: 'CHECK_DOMAIN', domain: record.domain });
     });
+
+    // Rescan button (stale data)
+    if (isStale(record)) {
+      const rescanBtn = document.createElement('a');
+      rescanBtn.className = 'btn btn--sm btn--ghost';
+      rescanBtn.style.color = 'var(--status-suspicious)';
+      rescanBtn.href = `https://www.virustotal.com/gui/domain/${record.domain}`;
+      rescanBtn.target = '_blank';
+      rescanBtn.rel = 'noreferrer';
+      rescanBtn.textContent = 'Rescan';
+      actions.appendChild(rescanBtn);
+    }
 
     // Dispute button (only for malicious/suspicious with vendor data)
     if (record.vt_vendors && record.vt_vendors.length > 0 && (record.status === 'malicious' || record.status === 'suspicious')) {
