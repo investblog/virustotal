@@ -209,7 +209,7 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
         void sendMessage({ type: 'RESCAN_DOMAIN', domain: record.domain }).then(res => {
           rescanBtn.classList.remove('btn--loading');
           if (res.ok) {
-            showToast(`${record.domain}: reanalyze queued`, 'info');
+            showToast(`${record.domain}: reanalyze requested. Check again in ~30s.`, 'info');
           } else {
             showToast(`Reanalyze failed: ${res.error ?? 'unknown'}`, 'error');
           }

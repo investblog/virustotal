@@ -492,10 +492,9 @@ export default defineBackground(() => {
             const result = await rescanDomain(msg.domain, apiKey);
             await incrementApiUsage();
             if (result.ok) {
-              // Rescan queued at VT — schedule a follow-up check to get fresh data
-              enqueue(queue, msg.domain, 'high');
-              scheduleProcessQueue();
-              await refreshActiveBadge();
+              // Reanalyze requested at VT — takes ~30s+ to complete.
+              // Do NOT auto-enqueue a check — results would still be stale.
+              // User can manually Check when ready.
               sendResponse({ ok: true });
             } else {
               sendResponse({ ok: false, error: result.error.kind });
