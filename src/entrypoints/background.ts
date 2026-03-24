@@ -250,6 +250,9 @@ export default defineBackground(() => {
         disputes: existing?.disputes,
         whois: result.data.whois ?? existing?.whois,
       };
+      // Clear processing BEFORE storage writes so polls see 0
+      processing = null;
+      updateQueueBadge();
       await saveDomain(record);
       await incrementApiUsage();
       batchProcessed += 1;
@@ -290,6 +293,8 @@ export default defineBackground(() => {
 
         case 'not_found': {
           retryCount.delete(item.domain);
+          processing = null;
+          updateQueueBadge();
           const existing = await getDomain(item.domain);
           const record: DomainRecord = {
             domain: item.domain,
