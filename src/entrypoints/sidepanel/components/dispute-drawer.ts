@@ -19,9 +19,9 @@ function createStatusSelect(domain: string, vendor: string, current: DisputeStat
   select.className = `input input--sm dispute-status dispute-status--${current}`;
 
   const options: { value: DisputeStatus; label: string }[] = [
-    { value: 'none', label: '\u25cb Not disputed' },
-    { value: 'disputed', label: '\u25d4 Disputed' },
-    { value: 'resolved', label: '\u25cf Resolved' },
+    { value: 'none', label: '\u23f3 Not disputed' },
+    { value: 'disputed', label: '\ud83d\udce8 Disputed' },
+    { value: 'resolved', label: '\u2705 Resolved' },
   ];
 
   for (const opt of options) {
