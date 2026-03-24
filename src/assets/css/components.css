@@ -557,6 +557,57 @@ select.input {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border-subtle);
 }
+.drawer__tip {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* === Vendor card (dispute drawer) === */
+
+.vendor-card {
+  padding: var(--space-3);
+  background: var(--bg-soft);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.vendor-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+}
+.vendor-card__name { font-weight: var(--fw-semibold); }
+.vendor-card__verdict { color: var(--text-muted); }
+.vendor-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.vendor-card__no-contact {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  font-style: italic;
+}
+.vendor-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  padding: var(--space-1) 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+.vendor-card__status:hover { color: var(--text); }
+.vendor-card__status--disputed { color: var(--status-suspicious); }
+.vendor-card__status--resolved { color: var(--status-clean); }
 
 /* === Bulk add === */
 

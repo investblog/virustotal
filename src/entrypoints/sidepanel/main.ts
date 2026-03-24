@@ -11,6 +11,7 @@ import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
 import type { DomainRecord, DomainStatus, CheckInterval } from '@shared/types';
 import { openBulkAddDrawer } from './components/bulk-add-drawer';
+import { openDisputeDrawer } from './components/dispute-drawer';
 
 const $ = (s: string) => document.querySelector(s);
 
@@ -169,6 +170,17 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       checkBtn.classList.add('btn--loading');
       void sendMessage({ type: 'CHECK_DOMAIN', domain: record.domain });
     });
+
+    // Dispute button (only for malicious/suspicious with vendor data)
+    if (record.vt_vendors && record.vt_vendors.length > 0 && (record.status === 'malicious' || record.status === 'suspicious')) {
+      const disputeBtn = document.createElement('button');
+      disputeBtn.className = 'btn btn--sm btn--ghost';
+      disputeBtn.textContent = 'Dispute';
+      disputeBtn.addEventListener('click', () => {
+        openDisputeDrawer(record.domain, record.vt_vendors!, record.disputes);
+      });
+      actions.appendChild(disputeBtn);
+    }
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'btn-icon';
@@ -338,6 +350,18 @@ async function renderCurrentSite(): Promise<void> {
   vtLink.rel = 'noreferrer';
   vtLink.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-vt"/></svg> VT Report';
   actionsDiv.appendChild(vtLink);
+
+  // Dispute button (only if flagged vendors exist)
+  if (record?.vt_vendors && record.vt_vendors.length > 0 && (record.status === 'malicious' || record.status === 'suspicious')) {
+    const disputeBtn = document.createElement('button');
+    disputeBtn.className = 'btn btn--sm btn--outline';
+    disputeBtn.style.cssText = 'border-color: var(--status-suspicious); color: var(--status-suspicious);';
+    disputeBtn.textContent = 'Dispute \u2192';
+    disputeBtn.addEventListener('click', () => {
+      openDisputeDrawer(domain!, record.vt_vendors!, record.disputes);
+    });
+    actionsDiv.appendChild(disputeBtn);
+  }
 
   container.appendChild(actionsDiv);
   } finally {

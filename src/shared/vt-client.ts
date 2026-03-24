@@ -1,9 +1,10 @@
-import type { VtStats, VtDomainResponse } from './types';
+import type { VtStats, VtVendorResult, VtVendorCategory, VtDomainResponse } from './types';
 import { VT_API_BASE } from './constants';
 
 export interface VtCheckResult {
   stats: VtStats;
   lastAnalysisDate: number;
+  vendors: VtVendorResult[];
 }
 
 export type VtError =
@@ -33,11 +34,29 @@ export async function checkDomain(domain: string, apiKey: string): Promise<VtRes
     const json = (await res.json()) as VtDomainResponse;
     const attrs = json.data.attributes;
 
+    // Parse per-vendor results
+    const vendors: VtVendorResult[] = [];
+    const raw = attrs.last_analysis_results;
+    if (raw) {
+      for (const [name, entry] of Object.entries(raw)) {
+        const cat = entry.category as VtVendorCategory;
+        if (cat === 'malicious' || cat === 'suspicious') {
+          vendors.push({ vendor: name, category: cat, result: entry.result || cat });
+        }
+      }
+      vendors.sort((a, b) => {
+        if (a.category === 'malicious' && b.category !== 'malicious') return -1;
+        if (a.category !== 'malicious' && b.category === 'malicious') return 1;
+        return a.vendor.localeCompare(b.vendor);
+      });
+    }
+
     return {
       ok: true,
       data: {
         stats: attrs.last_analysis_stats,
         lastAnalysisDate: attrs.last_analysis_date * 1000,
+        vendors,
       },
     };
   } catch (err) {

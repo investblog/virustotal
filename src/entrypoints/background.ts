@@ -107,7 +107,9 @@ export default defineBackground(() => {
         last_checked: Date.now(),
         vt_last_analysis_date: result.data.lastAnalysisDate,
         vt_stats: result.data.stats,
+        vt_vendors: result.data.vendors.length > 0 ? result.data.vendors : null,
         status,
+        disputes: existing?.disputes,
       };
       await saveDomain(record);
       await incrementApiUsage();
@@ -156,6 +158,7 @@ export default defineBackground(() => {
             last_checked: Date.now(),
             vt_last_analysis_date: null,
             vt_stats: null,
+            vt_vendors: null,
             status: 'unknown',
           };
           await saveDomain(record);
@@ -292,7 +295,9 @@ export default defineBackground(() => {
               last_checked: existing?.last_checked ?? 0,
               vt_last_analysis_date: existing?.vt_last_analysis_date ?? null,
               vt_stats: existing?.vt_stats ?? null,
+              vt_vendors: existing?.vt_vendors ?? null,
               status: existing?.status ?? 'pending',
+              disputes: existing?.disputes,
             };
             await saveDomain(record);
             enqueue(queue, domain, 'high');
