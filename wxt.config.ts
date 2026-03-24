@@ -19,12 +19,17 @@ export default defineConfig({
     description: 'Monitor domain reputation via VirusTotal API — watchlist with scheduled checks and badge indicator',
     default_locale: 'en',
     homepage_url: 'https://301.st',
+    author: 'VirusTotal Domain Monitor <support@301.st>',
 
     permissions: (browser === 'firefox')
       ? ['storage', 'alarms', 'tabs', 'activeTab', 'notifications']
       : ['storage', 'alarms', 'tabs', 'activeTab', 'sidePanel', 'notifications'],
 
     host_permissions: ['https://www.virustotal.com/*'],
+
+    content_security_policy: browser === 'firefox'
+      ? "script-src 'self'; object-src 'self'"
+      : undefined,
 
     icons: {
       16: 'icons/icon-16.png',
@@ -40,13 +45,17 @@ export default defineConfig({
         48: 'icons/icon-48.png',
         128: 'icons/icon-128.png',
       },
+      default_title: 'VirusTotal Domain Monitor',
     },
 
     ...(browser === 'firefox' && {
       browser_specific_settings: {
         gecko: {
           id: 'virustotal@301.st',
-          strict_min_version: '128.0',
+          strict_min_version: '142.0',
+        },
+        gecko_android: {
+          strict_min_version: '142.0',
         },
       },
     }),
