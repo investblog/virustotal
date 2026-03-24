@@ -675,8 +675,14 @@ select.input {
   transition: color var(--transition-fast);
 }
 .vendor-card__status:hover { color: var(--text); }
-.vendor-card__status--disputed { color: var(--status-suspicious); }
-.vendor-card__status--resolved { color: var(--status-clean); }
+.dispute-status {
+  width: auto;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+.dispute-status--none { color: var(--text-muted); }
+.dispute-status--disputed { color: var(--status-suspicious); border-color: var(--status-suspicious); }
+.dispute-status--resolved { color: var(--status-clean); border-color: var(--status-clean); }
 
 .vendor-card__text-block {
   display: flex;

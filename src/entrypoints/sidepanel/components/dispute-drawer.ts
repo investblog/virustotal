@@ -6,36 +6,39 @@ import { toUnicode } from '@shared/domain-utils';
 import { createDrawer } from './drawer';
 import type { VtVendorResult, DisputeStatus, DomainRecord } from '@shared/types';
 
-function statusIcon(status: DisputeStatus): string {
-  switch (status) {
-    case 'disputed': return '\u25d4';  // ◔
-    case 'resolved': return '\u25cf';  // ●
-    default: return '\u25cb';          // ○
-  }
-}
-
-function statusLabel(status: DisputeStatus): string {
-  switch (status) {
-    case 'disputed': return 'Disputed';
-    case 'resolved': return 'Resolved';
-    default: return 'Not disputed';
-  }
-}
-
-async function cycleDisputeStatus(domain: string, vendor: string, statusEl: HTMLElement): Promise<void> {
+async function saveDisputeStatus(domain: string, vendor: string, status: DisputeStatus): Promise<void> {
   const record = await getDomain(domain);
   if (!record) return;
-
   const disputes = record.disputes ?? {};
-  const current = disputes[vendor] ?? 'none';
-  const next: DisputeStatus = current === 'none' ? 'disputed' : current === 'disputed' ? 'resolved' : 'none';
-  disputes[vendor] = next;
+  disputes[vendor] = status;
+  await saveDomain({ ...record, disputes });
+}
 
-  const updated: DomainRecord = { ...record, disputes };
-  await saveDomain(updated);
+function createStatusSelect(domain: string, vendor: string, current: DisputeStatus): HTMLSelectElement {
+  const select = document.createElement('select');
+  select.className = `input input--sm dispute-status dispute-status--${current}`;
 
-  statusEl.textContent = `${statusIcon(next)} ${statusLabel(next)}`;
-  statusEl.className = `vendor-card__status vendor-card__status--${next}`;
+  const options: { value: DisputeStatus; label: string }[] = [
+    { value: 'none', label: '\u25cb Not disputed' },
+    { value: 'disputed', label: '\u25d4 Disputed' },
+    { value: 'resolved', label: '\u25cf Resolved' },
+  ];
+
+  for (const opt of options) {
+    const o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.label;
+    if (opt.value === current) o.selected = true;
+    select.appendChild(o);
+  }
+
+  select.addEventListener('change', () => {
+    const val = select.value as DisputeStatus;
+    select.className = `input input--sm dispute-status dispute-status--${val}`;
+    void saveDisputeStatus(domain, vendor, val);
+  });
+
+  return select;
 }
 
 /**
@@ -88,12 +91,7 @@ export function openDisputeDrawer(domain: string, vendors: VtVendorResult[], dis
 
     // Dispute status (clickable to cycle)
     const currentStatus = disputes?.[vendor.vendor] ?? 'none';
-    const statusEl = el('button', `vendor-card__status vendor-card__status--${currentStatus}`);
-    statusEl.type = 'button';
-    statusEl.textContent = `${statusIcon(currentStatus)} ${statusLabel(currentStatus)}`;
-    statusEl.addEventListener('click', () => {
-      void cycleDisputeStatus(domain, vendor.vendor, statusEl);
-    });
+    const statusSelect = createStatusSelect(domain, vendor.vendor, currentStatus);
 
     // Text preview with tabs: Template | AI Prompt
     const templateText = generateDisputeText(vendor.vendor, domain, vendor.result);
@@ -144,7 +142,7 @@ export function openDisputeDrawer(domain: string, vendors: VtVendorResult[], dis
 
     textBlock.append(tabBar, preview, copyBtn);
 
-    card.append(header, actions, textBlock, statusEl);
+    card.append(header, actions, textBlock, statusSelect);
     body.appendChild(card);
   }
 
