@@ -18,6 +18,7 @@ export default defineConfig({
     name: 'VirusTotal Domain Monitor',
     description: 'Monitor domain reputation via VirusTotal API — watchlist with scheduled checks and badge indicator',
     default_locale: 'en',
+    homepage_url: 'https://301.st',
 
     permissions: (browser === 'firefox')
       ? ['storage', 'alarms', 'tabs', 'activeTab', 'notifications']
@@ -44,7 +45,7 @@ export default defineConfig({
     ...(browser === 'firefox' && {
       browser_specific_settings: {
         gecko: {
-          id: 'vt-domain-monitor@example.com',
+          id: 'virustotal@301.st',
           strict_min_version: '128.0',
         },
       },

@@ -1,6 +1,6 @@
 {
   "name": "virustotal-domain-monitor",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Monitor domain reputation via VirusTotal API — watchlist with scheduled checks and badge indicator",
   "type": "module",
   "scripts": {
