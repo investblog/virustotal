@@ -182,16 +182,35 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       void sendMessage({ type: 'CHECK_DOMAIN', domain: record.domain });
     });
 
-    // Rescan button (stale data)
+    // Rescan (stale data): API button + manual link
     if (isStale(record)) {
-      const rescanBtn = document.createElement('a');
+      const rescanBtn = document.createElement('button');
       rescanBtn.className = 'btn btn--sm btn--ghost';
       rescanBtn.style.color = 'var(--status-suspicious)';
-      rescanBtn.href = `https://www.virustotal.com/gui/domain/${record.domain}`;
-      rescanBtn.target = '_blank';
-      rescanBtn.rel = 'noreferrer';
       rescanBtn.textContent = 'Rescan';
+      rescanBtn.title = 'Request VT rescan (1 API request)';
+      rescanBtn.addEventListener('click', () => {
+        rescanBtn.classList.add('btn--loading');
+        void sendMessage({ type: 'RESCAN_DOMAIN', domain: record.domain }).then(res => {
+          rescanBtn.classList.remove('btn--loading');
+          if (res.ok) {
+            showToast(`${record.domain}: rescan complete`, 'success');
+          } else {
+            showToast(`Rescan failed: ${res.error ?? 'unknown'}`, 'error');
+          }
+        }).catch(() => rescanBtn.classList.remove('btn--loading'));
+      });
       actions.appendChild(rescanBtn);
+
+      const manualLink = document.createElement('a');
+      manualLink.className = 'btn-icon';
+      manualLink.style.cssText = 'width: 24px; height: 24px;';
+      manualLink.href = `https://www.virustotal.com/gui/domain/${record.domain}`;
+      manualLink.target = '_blank';
+      manualLink.rel = 'noreferrer';
+      manualLink.title = 'Open on VT (free, manual rescan)';
+      manualLink.innerHTML = '<svg width="14" height="14"><use href="#ico-open-in-new"/></svg>';
+      actions.appendChild(manualLink);
     }
 
     // Dispute button (only for malicious/suspicious with vendor data)

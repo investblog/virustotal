@@ -10,7 +10,7 @@ import {
   getCheckInterval, getApiUsage, incrementApiUsage, resetApiUsageIfNewDay,
   getPauseUntil, setPauseUntil, isPaused,
 } from '@shared/db';
-import { checkDomain } from '@shared/vt-client';
+import { checkDomain, rescanDomain } from '@shared/vt-client';
 import { enqueue, dequeue, isQueued, canEnqueue, isInCooldown } from '@shared/queue';
 import { createWatchlistAlarm } from '@shared/alarm';
 import { computeBadge, computeStatus, BADGE_EMPTY } from '@shared/badge';
@@ -429,6 +429,36 @@ export default defineBackground(() => {
             }
             scheduleProcessQueue();
             sendResponse({ ok: true });
+          })();
+          return true;
+        }
+
+        case 'RESCAN_DOMAIN': {
+          void (async () => {
+            const apiKey = await getApiKey();
+            if (!apiKey) { sendResponse({ ok: false, error: 'no_key' }); return; }
+            const result = await rescanDomain(msg.domain, apiKey);
+            if (result.ok) {
+              const existing = await getDomain(msg.domain);
+              const status = computeStatus(result.data.stats);
+              const record: DomainRecord = {
+                domain: msg.domain,
+                watchlist: existing?.watchlist ?? false,
+                added_at: existing?.added_at ?? Date.now(),
+                last_checked: Date.now(),
+                vt_last_analysis_date: result.data.lastAnalysisDate,
+                vt_stats: result.data.stats,
+                vt_vendors: result.data.vendors.length > 0 ? result.data.vendors : null,
+                status,
+                disputes: existing?.disputes,
+              };
+              await saveDomain(record);
+              await incrementApiUsage();
+              await refreshActiveBadge();
+              sendResponse({ ok: true });
+            } else {
+              sendResponse({ ok: false, error: result.error.kind });
+            }
           })();
           return true;
         }

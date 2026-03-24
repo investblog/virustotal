@@ -66,3 +66,33 @@ export async function checkDomain(domain: string, apiKey: string): Promise<VtRes
     };
   }
 }
+
+/**
+ * Request VT to rescan a domain. POST /domains/{domain}/analyse
+ * Returns true on success (202), false on error.
+ */
+export async function rescanDomain(domain: string, apiKey: string): Promise<VtResult> {
+  try {
+    const res = await fetch(`${VT_API_BASE}/domains/${encodeURIComponent(domain)}/analyse`, {
+      method: 'POST',
+      headers: { 'x-apikey': apiKey },
+    });
+
+    if (res.status === 401) return { ok: false, error: { kind: 'invalid_key' } };
+    if (res.status === 429) return { ok: false, error: { kind: 'rate_limited' } };
+    if (res.status === 404) return { ok: false, error: { kind: 'not_found' } };
+
+    // 200 or 202 = success — VT queued the rescan
+    if (res.ok) {
+      // Re-fetch fresh results after rescan is queued
+      return checkDomain(domain, apiKey);
+    }
+
+    return { ok: false, error: { kind: 'network', message: `HTTP ${res.status}` } };
+  } catch (err) {
+    return {
+      ok: false,
+      error: { kind: 'network', message: err instanceof Error ? err.message : 'Unknown error' },
+    };
+  }
+}
