@@ -197,21 +197,21 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       });
     }
 
-    // Rescan (stale data): API button + manual link
+    // Reanalyze (stale data): icon button + manual VT link
     if (isStale(record)) {
       const rescanBtn = document.createElement('button');
-      rescanBtn.className = 'btn btn--sm btn--ghost';
-      rescanBtn.style.color = 'var(--status-suspicious)';
-      rescanBtn.textContent = 'Rescan';
-      rescanBtn.title = 'Request VT rescan (1 API request)';
+      rescanBtn.className = 'btn-icon';
+      rescanBtn.style.cssText = 'width: 24px; height: 24px; color: var(--status-suspicious);';
+      rescanBtn.title = 'Reanalyze (1 API request)';
+      rescanBtn.innerHTML = '<svg width="14" height="14"><use href="#ico-refresh"/></svg>';
       rescanBtn.addEventListener('click', () => {
         rescanBtn.classList.add('btn--loading');
         void sendMessage({ type: 'RESCAN_DOMAIN', domain: record.domain }).then(res => {
           rescanBtn.classList.remove('btn--loading');
           if (res.ok) {
-            showToast(`${record.domain}: rescan queued, checking shortly`, 'info');
+            showToast(`${record.domain}: reanalyze queued`, 'info');
           } else {
-            showToast(`Rescan failed: ${res.error ?? 'unknown'}`, 'error');
+            showToast(`Reanalyze failed: ${res.error ?? 'unknown'}`, 'error');
           }
         }).catch(() => rescanBtn.classList.remove('btn--loading'));
       });
@@ -223,7 +223,7 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       manualLink.href = `https://www.virustotal.com/gui/domain/${record.domain}`;
       manualLink.target = '_blank';
       manualLink.rel = 'noreferrer';
-      manualLink.title = 'Open on VT (free, manual rescan)';
+      manualLink.title = 'Open on VT (free)';
       manualLink.innerHTML = '<svg width="14" height="14"><use href="#ico-open-in-new"/></svg>';
       actions.appendChild(manualLink);
     }
@@ -260,8 +260,8 @@ let renderToken = 0;
 
 async function renderCurrentSite(): Promise<void> {
   const token = ++renderToken;
-  const nav = document.getElementById('navTabs');
-  nav?.classList.add('is-loading');
+  const footer = document.getElementById('panelFooter');
+  footer?.classList.add('is-loading');
 
   const container = document.getElementById('currentSiteInfo')!;
   container.replaceChildren();
@@ -431,7 +431,7 @@ async function renderCurrentSite(): Promise<void> {
   card.appendChild(toolbar);
   container.appendChild(card);
   } finally {
-    nav?.classList.remove('is-loading');
+    footer?.classList.remove('is-loading');
   }
 }
 
@@ -541,7 +541,7 @@ function initPopupMode(): void {
 let prevPendingCount = 0;
 
 function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
-  const nav = document.getElementById('navTabs');
+  const footerEl = document.getElementById('panelFooter');
   const queueBadge = document.getElementById('footerQueue');
   const tokensBadge = document.getElementById('footerTokens');
   const all = Object.values(domains).filter(d => d.watchlist);
@@ -549,9 +549,9 @@ function updateQueueIndicator(domains: Record<string, DomainRecord>): void {
 
   // Nav loading bar
   if (pendingCount > 0) {
-    nav?.classList.add('is-loading');
+    footerEl?.classList.add('is-loading');
   } else {
-    nav?.classList.remove('is-loading');
+    footerEl?.classList.remove('is-loading');
 
     // Queue just finished — show summary toast
     if (prevPendingCount > 0) {

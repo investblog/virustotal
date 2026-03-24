@@ -135,6 +135,10 @@ export default defineBackground(() => {
   }
 
   async function updateBadgeForTab(tabId: number): Promise<void> {
+    // Don't override global queue badge with per-tab status
+    const queueSize = queue.length + (processing ? 1 : 0);
+    if (queueSize > 0) return;
+
     let url: string | undefined;
     try {
       const tab = await browser.tabs.get(tabId);

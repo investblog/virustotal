@@ -365,27 +365,7 @@ body {
   position: relative;
   overflow: visible;
 }
-.panel__nav::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  height: 2px;
-  width: 30%;
-  background: var(--primary);
-  opacity: 0;
-  z-index: 2;
-  transition: opacity 0.2s;
-}
-.panel__nav.is-loading::after {
-  opacity: 1;
-  animation: navSlide 1.2s ease-in-out infinite;
-}
-@keyframes navSlide {
-  0% { left: -30%; width: 30%; }
-  50% { left: 35%; width: 40%; }
-  100% { left: 100%; width: 30%; }
-}
+/* queue counter moved to footer badges */
 /* queue counter moved to footer badges */
 .nav-tab {
   flex: 1;
@@ -785,6 +765,27 @@ select.input {
   font-size: var(--fs-xs);
   color: var(--text-subtle);
   flex-shrink: 0;
+  position: relative;
+}
+.panel__footer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 30%;
+  background: var(--primary);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.panel__footer.is-loading::after {
+  opacity: 1;
+  animation: footerSlide 1.2s ease-in-out infinite;
+}
+@keyframes footerSlide {
+  0% { left: -30%; width: 30%; }
+  50% { left: 35%; width: 40%; }
+  100% { left: 100%; width: 30%; }
 }
 .panel__footer-badges {
   display: flex;
