@@ -110,8 +110,16 @@ function statusDotClass(record: DomainRecord): string {
 
 let lastDomains: Record<string, DomainRecord> = {};
 
+function updateFooterCount(domains: Record<string, DomainRecord>): void {
+  const el = document.getElementById('footerCount');
+  if (!el) return;
+  const count = Object.values(domains).filter(d => d.watchlist).length;
+  el.textContent = `${count} domain${count !== 1 ? 's' : ''}`;
+}
+
 function renderWatchlist(domains: Record<string, DomainRecord>): void {
   lastDomains = domains;
+  updateFooterCount(domains);
   const container = document.getElementById('watchlistContainer')!;
   const q = searchQuery.toLowerCase();
   const records = Object.values(domains)
@@ -494,6 +502,8 @@ function initPopupMode(): void {
   document.documentElement.setAttribute('data-popup', '');
   const nav = document.getElementById('navTabs');
   if (nav) nav.hidden = true;
+  const mainFooter = document.getElementById('panelFooter');
+  if (mainFooter) mainFooter.hidden = true;
   showView('current');
 
   const footer = document.getElementById('popupFooter');

@@ -785,11 +785,49 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
+/* === Panel footer === */
+
+.panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  flex-shrink: 0;
+}
+.panel__footer-count {
+  font-variant-numeric: tabular-nums;
+}
+.panel__footer-links {
+  display: flex;
+  gap: var(--space-2);
+}
+.panel__footer-link {
+  display: inline-flex;
+  opacity: 0.5;
+  color: var(--text-muted);
+  transition: opacity var(--transition-fast);
+}
+.panel__footer-link:hover { opacity: 1; }
+.panel__sponsor {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-subtle);
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity var(--transition-fast);
+  font-size: 10px;
+}
+.panel__sponsor:hover { opacity: 1; }
+
 /* === Toast notifications === */
 
 .toast-container {
   position: fixed;
-  bottom: var(--space-3);
+  bottom: 28px;
   left: var(--space-3);
   right: var(--space-3);
   z-index: 100;
