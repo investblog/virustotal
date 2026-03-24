@@ -279,6 +279,16 @@ Lightweight tracking в `storage.local`:
 
 ---
 
+## For Discussion — VT API capabilities
+
+> Ценность непонятна, нужно обсудить с командой перед реализацией
+
+- **Community votes** — `POST /domains/{domain}/votes` (harmless/malicious). Даёт engagement, но смещает позиционирование из мониторинга в community participation. 1 токен.
+- **Comments / notes** — `POST /domains/{domain}/comments`. Заметки к домену, видны другим пользователям VT. Зачем вебмастеру?
+- **Domain relationships** — `GET /domains/{domain}/relationships/{type}` (subdomains, siblings, URLs, etc.). Потенциально полезно для аудита, но широкий scope.
+- **Domain WHOIS** — `GET /domains/{domain}/whois`. Дополнительный контекст, но есть отдельные WHOIS-инструменты.
+- **IP resolution** — `GET /domains/{domain}/resolutions`. DNS history, может быть полезно для SEO/migration.
+
 ## Backlog / Ideas
 
 - Telegram-бот для уведомлений
