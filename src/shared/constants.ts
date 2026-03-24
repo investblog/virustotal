@@ -38,7 +38,16 @@ export const STORAGE_KEYS = {
   THEME: 'theme',
   PAUSE_UNTIL: 'pause_until',
   RESCAN_POLICY: 'rescan_policy',
+  EXCLUDED_DOMAINS: 'excluded_domains',
 } as const;
+
+export const DEFAULT_EXCLUDED_DOMAINS: string[] = [
+  'google.com', 'youtube.com', 'facebook.com', 'twitter.com', 'x.com',
+  'instagram.com', 'linkedin.com', 'github.com', 'stackoverflow.com',
+  'reddit.com', 'wikipedia.org', 'amazon.com', 'microsoft.com',
+  'apple.com', 'virustotal.com', 'netflix.com', 'whatsapp.com',
+  'tiktok.com', 'discord.com', 'twitch.tv',
+];
 
 export const PAUSE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 

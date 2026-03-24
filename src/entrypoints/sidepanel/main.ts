@@ -6,8 +6,9 @@ import {
   getDomains, getApiKey, saveApiKey, getApiUsage,
   getCheckInterval, saveCheckInterval, isPaused,
   getRescanPolicy, saveRescanPolicy,
+  getExcludedDomains, saveExcludedDomains,
 } from '@shared/db';
-import { STORAGE_KEYS as SK_PAUSE } from '@shared/constants';
+import { STORAGE_KEYS as SK_PAUSE, DEFAULT_EXCLUDED_DOMAINS } from '@shared/constants';
 import { showToast } from '@shared/ui-helpers';
 import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
@@ -546,6 +547,28 @@ async function initSettings(): Promise<void> {
   // Check all
   document.getElementById('btnCheckAll')!.addEventListener('click', () => {
     void sendMessage({ type: 'CHECK_ALL' });
+  });
+
+  // Excluded domains
+  const excludedTextarea = document.getElementById('settingsExcluded') as HTMLTextAreaElement;
+  const excludedList = await getExcludedDomains();
+  excludedTextarea.value = excludedList.join(', ');
+
+  let excludeDebounce: ReturnType<typeof setTimeout> | null = null;
+  excludedTextarea.addEventListener('input', () => {
+    if (excludeDebounce) clearTimeout(excludeDebounce);
+    excludeDebounce = setTimeout(() => {
+      const domains = excludedTextarea.value
+        .split(/[,\n\s]+/)
+        .map(d => d.trim().toLowerCase())
+        .filter(d => d && d.includes('.'));
+      void saveExcludedDomains(domains);
+    }, 500);
+  });
+
+  document.getElementById('btnResetExcluded')?.addEventListener('click', () => {
+    void saveExcludedDomains([...DEFAULT_EXCLUDED_DOMAINS]);
+    excludedTextarea.value = DEFAULT_EXCLUDED_DOMAINS.join(', ');
   });
 
   // Setup guide

@@ -6,7 +6,7 @@ import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET, PAUSE_DURATION_MS, STALE_THRESH
 import { extractDomain } from '@shared/domain-utils';
 import {
   getDomains, getDomain, saveDomain, removeDomain, saveBulkDomains,
-  getWatchlistDomains, getApiKey, saveApiKey,
+  getWatchlistDomains, getApiKey, saveApiKey, getExcludedDomains,
   getCheckInterval, getApiUsage, incrementApiUsage, resetApiUsageIfNewDay,
   getPauseUntil, setPauseUntil, isPaused,
   getRescanPolicy,
@@ -170,6 +170,10 @@ export default defineBackground(() => {
 
     const domain = extractDomain(url);
     if (!domain) { applyBadge(tabId, BADGE_EMPTY); return; }
+
+    // Excluded domains: no badge, no ad-hoc check
+    const excluded = await getExcludedDomains();
+    if (excluded.includes(domain)) { applyBadge(tabId, BADGE_EMPTY); return; }
 
     const record = await getDomain(domain);
     const queued = isQueued(queue, domain) || processing === domain;

@@ -1,5 +1,5 @@
 import type { DomainRecord, ApiUsage, CheckInterval, ThemePreference, RescanPolicy } from './types';
-import { STORAGE_KEYS } from './constants';
+import { STORAGE_KEYS, DEFAULT_EXCLUDED_DOMAINS } from './constants';
 
 const DEFAULT_CHECK_INTERVAL: CheckInterval = 24;
 
@@ -165,6 +165,23 @@ export async function getThemePreference(): Promise<ThemePreference> {
 export async function saveThemePreference(pref: ThemePreference): Promise<void> {
   return new Promise(resolve => {
     chrome.storage.sync.set({ [STORAGE_KEYS.THEME]: pref }, resolve);
+  });
+}
+
+// --- Excluded domains (storage.sync) ---
+
+export async function getExcludedDomains(): Promise<string[]> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get({ [STORAGE_KEYS.EXCLUDED_DOMAINS]: DEFAULT_EXCLUDED_DOMAINS }, data => {
+      const val = data[STORAGE_KEYS.EXCLUDED_DOMAINS];
+      resolve(Array.isArray(val) ? val : DEFAULT_EXCLUDED_DOMAINS);
+    });
+  });
+}
+
+export async function saveExcludedDomains(domains: string[]): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.EXCLUDED_DOMAINS]: domains }, resolve);
   });
 }
 
