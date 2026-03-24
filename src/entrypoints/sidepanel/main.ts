@@ -107,6 +107,34 @@ function statusDotClass(record: DomainRecord): string {
   return `status-dot--${record.status}`;
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function currentSiteHeadline(record: DomainRecord | undefined): string {
+  if (!record?.vt_stats) return _('notChecked', 'Not checked yet');
+  if (record.status === 'pending') return _('statusPending', 'Checking...');
+  if (isStale(record)) return _('staleWarning', 'VirusTotal data is over 30 days old');
+
+  const { malicious, suspicious } = record.vt_stats;
+
+  if (record.status === 'malicious') {
+    const parts = [pluralize(malicious, 'malicious detection')];
+    if (suspicious > 0) parts.push(pluralize(suspicious, 'suspicious signal'));
+    return parts.join(' | ');
+  }
+
+  if (record.status === 'suspicious') {
+    return pluralize(suspicious, 'suspicious signal');
+  }
+
+  if (record.status === 'clean') {
+    return 'No malicious or suspicious detections';
+  }
+
+  return statusLabel(record.status);
+}
+
 // --- Watchlist rendering ---
 
 let lastDomains: Record<string, DomainRecord> = {};
@@ -308,6 +336,9 @@ async function renderCurrentSite(): Promise<void> {
   const record = domains[domain];
 
   const domainUnicode = toUnicode(domain);
+  const effectiveStatus: DomainStatus = record?.vt_stats
+    ? (isStale(record) ? 'unknown' : record.status)
+    : 'unknown';
 
   // Inspector card surface
   const card = document.createElement('div');
@@ -316,6 +347,25 @@ async function renderCurrentSite(): Promise<void> {
   // Row 1: domain + verdict chip + freshness
   const summary = document.createElement('div');
   summary.className = 'inspect-card__summary';
+
+  const eyebrow = document.createElement('div');
+  eyebrow.className = 'inspect-card__eyebrow';
+
+  const eyebrowLabel = document.createElement('span');
+  eyebrowLabel.className = 'inspect-card__eyebrow-label';
+  eyebrowLabel.textContent = 'Current domain';
+  eyebrow.appendChild(eyebrowLabel);
+
+  if (record?.last_checked) {
+    const fresh = document.createElement('span');
+    fresh.className = 'freshness-chip';
+    fresh.dataset.timestamp = String(record.last_checked);
+    fresh.textContent = `Checked ${timeAgo(record.last_checked)}`;
+    if (isStale(record)) fresh.classList.add('freshness-chip--stale');
+    eyebrow.appendChild(fresh);
+  }
+
+  summary.appendChild(eyebrow);
 
   const domainEl = document.createElement('span');
   domainEl.className = 'inspect-card__domain';
@@ -329,11 +379,33 @@ async function renderCurrentSite(): Promise<void> {
   }
   summary.appendChild(domainEl);
 
+  const verdictRow = document.createElement('div');
+  verdictRow.className = 'inspect-card__verdict-row';
+
+  const verdictCluster = document.createElement('div');
+  verdictCluster.className = 'inspect-card__verdict';
+
+  const verdictDot = document.createElement('span');
+  verdictDot.className = `status-dot status-dot--${effectiveStatus}`;
+
+  const verdictChip = document.createElement('span');
+  verdictChip.className = `verdict-chip verdict-chip--${effectiveStatus}`;
+  verdictChip.textContent = statusLabel(effectiveStatus);
+
+  verdictCluster.append(verdictDot, verdictChip);
+  verdictRow.appendChild(verdictCluster);
+  summary.appendChild(verdictRow);
+
   // No API key → setup CTA
   if (!apiKey) {
+    const headline = document.createElement('div');
+    headline.className = 'inspect-card__headline inspect-card__headline--muted';
+    headline.textContent = 'API key required to check this site';
+    summary.appendChild(headline);
+
     const cta = document.createElement('div');
     cta.className = 'inspect-card__body';
-    cta.innerHTML = '<p style="color: var(--text-muted); margin-bottom: var(--space-2)">Set up your API key to check domains</p>';
+    cta.innerHTML = '<p class="inspect-card__hint">Set up your API key to check domains</p>';
     const setupBtn = document.createElement('button');
     setupBtn.className = 'btn btn--primary btn--sm';
     setupBtn.textContent = 'Open Setup';
@@ -346,47 +418,32 @@ async function renderCurrentSite(): Promise<void> {
     return;
   }
 
-  // Verdict chip
-  if (record && record.vt_stats) {
-    const effectiveStatus = isStale(record) ? 'unknown' : record.status;
-    const chip = document.createElement('span');
-    chip.className = `verdict-chip verdict-chip--${effectiveStatus}`;
-    chip.textContent = statusLabel(effectiveStatus);
-    summary.appendChild(chip);
-
-    // Freshness chip
-    if (record.last_checked) {
-      const fresh = document.createElement('span');
-      fresh.className = 'freshness-chip';
-      fresh.dataset.timestamp = String(record.last_checked);
-      fresh.textContent = timeAgo(record.last_checked);
-      if (isStale(record)) fresh.classList.add('freshness-chip--stale');
-      summary.appendChild(fresh);
-    }
-  }
+  const headline = document.createElement('div');
+  headline.className = `inspect-card__headline${!record?.vt_stats ? ' inspect-card__headline--muted' : ''}`;
+  headline.textContent = currentSiteHeadline(record);
+  summary.appendChild(headline);
 
   card.appendChild(summary);
 
   if (!record || !record.vt_stats) {
     const msg = document.createElement('div');
     msg.className = 'inspect-card__body';
-    msg.style.cssText = 'color: var(--text-muted);';
-    msg.textContent = _('notChecked', 'Not checked yet');
+    msg.innerHTML = `<span class="inspect-card__hint">${_('notChecked', 'Not checked yet')}. Run a check to fetch the latest VirusTotal verdict for this domain.</span>`;
     card.appendChild(msg);
   } else {
     // Row 2: compact stats
     const stats = document.createElement('div');
     stats.className = 'inspect-card__stats';
     const items = [
-      { label: 'Mal', value: record.vt_stats.malicious, cls: record.vt_stats.malicious > 0 ? 'stat--bad' : '' },
-      { label: 'Sus', value: record.vt_stats.suspicious, cls: record.vt_stats.suspicious > 0 ? 'stat--warn' : '' },
-      { label: 'OK', value: record.vt_stats.harmless, cls: 'stat--ok' },
-      { label: 'N/A', value: record.vt_stats.undetected, cls: '' },
+      { label: 'Malicious', value: record.vt_stats.malicious, cls: record.vt_stats.malicious > 0 ? 'stat--bad' : '' },
+      { label: 'Suspicious', value: record.vt_stats.suspicious, cls: record.vt_stats.suspicious > 0 ? 'stat--warn' : '' },
+      { label: 'Harmless', value: record.vt_stats.harmless, cls: 'stat--ok' },
+      { label: 'Undetected', value: record.vt_stats.undetected, cls: '' },
     ];
     for (const s of items) {
-      const el = document.createElement('span');
+      const el = document.createElement('div');
       el.className = `inspect-card__stat ${s.cls}`;
-      el.innerHTML = `<strong>${s.value}</strong> ${s.label}`;
+      el.innerHTML = `<span class="inspect-card__stat-label">${s.label}</span><strong class="inspect-card__stat-value">${s.value}</strong>`;
       stats.appendChild(el);
     }
     card.appendChild(stats);

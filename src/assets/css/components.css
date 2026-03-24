@@ -445,62 +445,138 @@ select.input {
 
 .inspect-card {
   background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 2px);
   padding: var(--space-3);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--bg-soft) 70%, transparent);
 }
 .inspect-card__summary {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.inspect-card__eyebrow {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+.inspect-card__eyebrow-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
 .inspect-card__domain {
   font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.inspect-card__verdict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.inspect-card__verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.inspect-card__verdict .status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+}
+.inspect-card__headline {
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+.inspect-card__headline--muted {
+  color: var(--text-muted);
 }
 .inspect-card__body {
   font-size: var(--fs-sm);
-  padding: var(--space-2) 0;
-}
-.inspect-card__stats {
-  display: flex;
-  gap: var(--space-3);
-  font-size: var(--fs-xs);
   color: var(--text-muted);
 }
-.inspect-card__stat strong {
+.inspect-card__hint {
+  display: block;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.inspect-card__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.inspect-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  background: var(--bg-soft);
+  min-width: 0;
+}
+.inspect-card__stat-label {
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.inspect-card__stat-value {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.stat--bad strong { color: var(--status-malicious); }
-.stat--warn strong { color: var(--status-suspicious); }
-.stat--ok strong { color: var(--status-clean); }
+.stat--bad .inspect-card__stat-value {
+  color: var(--status-malicious);
+}
+.stat--warn .inspect-card__stat-value {
+  color: var(--status-suspicious);
+}
+.stat--ok .inspect-card__stat-value {
+  color: var(--status-clean);
+}
 .inspect-card__meta {
   font-size: var(--fs-xs);
   color: var(--text-subtle);
+  line-height: 1.4;
 }
 .inspect-card__meta--stale { color: var(--status-suspicious); }
 .inspect-card__toolbar {
   display: flex;
   gap: var(--space-1);
   flex-wrap: wrap;
-  padding-top: var(--space-1);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
 }
 
 /* Verdict chip */
 .verdict-chip {
   display: inline-flex;
-  padding: 1px 6px;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
   border-radius: var(--radius-xs);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
 }
 .verdict-chip--clean { background: color-mix(in srgb, var(--status-clean) 15%, transparent); color: var(--status-clean); }
 .verdict-chip--suspicious { background: color-mix(in srgb, var(--status-suspicious) 15%, transparent); color: var(--status-suspicious); }
@@ -510,6 +586,13 @@ select.input {
 
 /* Freshness chip */
 .freshness-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
+  background: var(--bg-soft);
   font-size: var(--fs-xs);
   color: var(--text-subtle);
 }
