@@ -132,6 +132,7 @@ src/
 Before inventing new UI patterns, check these existing projects for proven solutions:
 
 - **`W:\Projects\301-ui`** — Design system. Source of truth for:
+  - `static/img/icons-src/mono/` — domain-themed SVG icons (idn, dns, shield-check, web-scan, copy, etc.)
   - `static/css/drawers.css` — drawer panel structure, slide-in animation, footer patterns
   - `static/css/tables.css` — domain cells, IDN badges, provider labels, status badges
   - `static/css/site.css` — fieldset/legend, detail-row grid, chip buttons, copy feedback

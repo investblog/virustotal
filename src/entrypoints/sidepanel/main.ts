@@ -104,7 +104,7 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
     if (unicode !== record.domain) {
       const idnBadge = document.createElement('span');
       idnBadge.className = 'idn-badge';
-      idnBadge.textContent = 'IDN';
+      idnBadge.innerHTML = '<svg width="18" height="11"><use href="#ico-idn"/></svg>';
       idnBadge.title = record.domain;
       name.appendChild(idnBadge);
     }
@@ -206,7 +206,7 @@ async function renderCurrentSite(): Promise<void> {
   if (domainUnicode !== domain) {
     const idnBadge = document.createElement('span');
     idnBadge.className = 'idn-badge';
-    idnBadge.textContent = 'IDN';
+    idnBadge.innerHTML = '<svg width="18" height="11"><use href="#ico-idn"/></svg>';
     idnBadge.title = domain;
     header.appendChild(idnBadge);
   }
