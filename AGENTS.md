@@ -244,6 +244,7 @@ Notes:
 - Do not create a separate popup product without an explicit product decision
 - Do not silently replace hostname-based behavior with registrable-domain-only behavior
 - Do not resolve spec/roadmap/code contradictions by guesswork
+- **Do not use emoji anywhere** — not in code, not in UI, not in select options, not in badge text. Use SVG icons from `W:\Projects\301-ui\static\img\icons-src\mono\` or from [Pictogrammers MDI](https://pictogrammers.com/library/mdi/). Add icons to the SVG sprite in `sidepanel/index.html`. Plain Unicode text symbols (✓ ✗ … — •) in badge text are acceptable; emoji codepoints are not.
 
 ## File Ownership
 

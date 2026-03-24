@@ -19,9 +19,9 @@ function createStatusSelect(domain: string, vendor: string, current: DisputeStat
   select.className = `input input--sm dispute-status dispute-status--${current}`;
 
   const options: { value: DisputeStatus; label: string }[] = [
-    { value: 'none', label: '\u23f3 Not disputed' },
-    { value: 'disputed', label: '\ud83d\udce8 Disputed' },
-    { value: 'resolved', label: '\u2705 Resolved' },
+    { value: 'none', label: 'Not disputed' },
+    { value: 'disputed', label: 'Disputed' },
+    { value: 'resolved', label: 'Resolved' },
   ];
 
   for (const opt of options) {
@@ -80,7 +80,7 @@ export function openDisputeDrawer(domain: string, vendors: VtVendorResult[], dis
     if (contact?.email) {
       const mailBtn = el('a', 'btn btn--ghost btn--sm') as HTMLAnchorElement;
       mailBtn.href = generateMailtoLink(contact.email, vendor.vendor, domain, vendor.result);
-      mailBtn.textContent = '\u2709 Email';
+      mailBtn.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-email"/></svg> Email';
       actions.appendChild(mailBtn);
     }
 

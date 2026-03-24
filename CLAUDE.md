@@ -148,3 +148,4 @@ Before inventing new UI patterns, check these existing projects for proven solut
 - `SPEC.md` is the v1 product contract
 - `ROADMAP.md` is for future work and proposals
 - Keep `AGENTS.md` and `CLAUDE.md` aligned with actual code after structural changes
+- **No emoji** — use SVG icons from 301-ui mono set or Pictogrammers MDI, add to sprite
