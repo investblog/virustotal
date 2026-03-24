@@ -30,6 +30,12 @@ export interface OpenSidepanelRequest {
   type: 'OPEN_SIDEPANEL';
 }
 
+export interface BulkAddRequest {
+  type: 'BULK_ADD';
+  domains: string[];
+  checkNow: boolean;
+}
+
 export interface PauseRequest {
   type: 'PAUSE';
 }
@@ -46,6 +52,7 @@ export type RequestMessage =
   | VerifyKeyRequest
   | GetQueueStatusRequest
   | OpenSidepanelRequest
+  | BulkAddRequest
   | PauseRequest
   | UnpauseRequest;
 
@@ -71,6 +78,7 @@ export type ResponseMap = {
   VERIFY_KEY: VerifyKeyResponse;
   GET_QUEUE_STATUS: QueueStatusResponse;
   OPEN_SIDEPANEL: void;
+  BULK_ADD: DomainActionResponse;
   PAUSE: DomainActionResponse;
   UNPAUSE: DomainActionResponse;
 };

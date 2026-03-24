@@ -379,6 +379,38 @@ export default defineBackground(() => {
           return true;
         }
 
+        case 'BULK_ADD': {
+          void (async () => {
+            const existing = await getDomains();
+            const now = Date.now();
+            for (const domain of msg.domains) {
+              const prev = existing[domain];
+              existing[domain] = {
+                domain,
+                watchlist: true,
+                added_at: prev?.added_at ?? now,
+                last_checked: prev?.last_checked ?? 0,
+                vt_last_analysis_date: prev?.vt_last_analysis_date ?? null,
+                vt_stats: prev?.vt_stats ?? null,
+                vt_vendors: prev?.vt_vendors ?? null,
+                status: prev?.status ?? 'pending',
+                disputes: prev?.disputes,
+              };
+              if (msg.checkNow) {
+                enqueue(queue, domain, 'high');
+              }
+            }
+            // Single batch write
+            await new Promise<void>(resolve => {
+              chrome.storage.local.set({ domains: existing }, resolve);
+            });
+            if (msg.checkNow) scheduleProcessQueue();
+            await refreshActiveBadge();
+            sendResponse({ ok: true });
+          })();
+          return true;
+        }
+
         case 'VERIFY_KEY': {
           void (async () => {
             const result = await checkDomain('google.com', msg.key);

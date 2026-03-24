@@ -124,31 +124,22 @@ export function openBulkAddDrawer(): void {
     debounceTimer = setTimeout(() => { void updatePreflight(); }, 300);
   });
 
-  // Add only
+  // Add only (no check)
   addOnlyBtn.addEventListener('click', () => {
-    if (!lastResult) return;
+    if (!lastResult || !lastResult.newDomains.length) return;
     addOnlyBtn.classList.add('btn--loading');
-
-    void (async () => {
-      for (const domain of lastResult!.newDomains) {
-        await sendMessage({ type: 'ADD_DOMAIN', domain });
-      }
-      aside.remove();
-    })();
+    void sendMessage({ type: 'BULK_ADD', domains: lastResult.newDomains, checkNow: false })
+      .then(() => aside.remove())
+      .catch(() => aside.remove());
   });
 
   // Add + check now
   addCheckBtn.addEventListener('click', () => {
-    if (!lastResult) return;
+    if (!lastResult || !lastResult.newDomains.length) return;
     addCheckBtn.classList.add('btn--loading');
-
-    void (async () => {
-      for (const domain of lastResult!.newDomains) {
-        await sendMessage({ type: 'ADD_DOMAIN', domain });
-      }
-      // Domains are auto-queued as high priority by ADD_DOMAIN handler
-      aside.remove();
-    })();
+    void sendMessage({ type: 'BULK_ADD', domains: lastResult.newDomains, checkNow: true })
+      .then(() => aside.remove())
+      .catch(() => aside.remove());
   });
 
   document.body.appendChild(aside);
