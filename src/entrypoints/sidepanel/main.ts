@@ -599,33 +599,36 @@ function initPopupMode(): void {
 // --- Queue activity indicator (from background, not storage) ---
 
 let prevQueueLength = 0;
+let zeroCount = 0;
 let queuePollTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function pollQueueStatus(): Promise<void> {
   const footerEl = document.getElementById('panelFooter');
   const queueBadge = document.getElementById('footerQueue');
 
+  if (queuePollTimer) { clearTimeout(queuePollTimer); queuePollTimer = null; }
+
   try {
     const status = await sendMessage({ type: 'GET_QUEUE_STATUS' });
     const queueLength = status.length + (status.processing ? 1 : 0);
 
     if (queueLength > 0) {
+      zeroCount = 0;
       footerEl?.classList.add('is-loading');
       if (queueBadge) {
         queueBadge.textContent = String(queueLength);
         queueBadge.title = `${queueLength} in queue`;
         queueBadge.hidden = false;
       }
-      // Keep polling while queue active
-      if (queuePollTimer) clearTimeout(queuePollTimer);
-      queuePollTimer = setTimeout(() => { queuePollTimer = null; void pollQueueStatus(); }, 2000);
+      // Keep polling
+      queuePollTimer = setTimeout(() => void pollQueueStatus(), 2000);
     } else {
+      zeroCount += 1;
       footerEl?.classList.remove('is-loading');
       if (queueBadge) queueBadge.hidden = true;
-      if (queuePollTimer) { clearTimeout(queuePollTimer); queuePollTimer = null; }
 
-      // Queue just finished
-      if (prevQueueLength > 0) {
+      // Queue just finished — toast once
+      if (prevQueueLength > 0 && zeroCount === 1) {
         const domains = await getDomains();
         const all = Object.values(domains).filter(d => d.watchlist);
         const mal = all.filter(d => d.status === 'malicious').length;
@@ -635,6 +638,11 @@ async function pollQueueStatus(): Promise<void> {
         } else {
           showToast(`Check complete: all clean`, 'success');
         }
+      }
+
+      // Keep polling for 2 more cycles to catch stragglers, then stop
+      if (zeroCount < 3 && prevQueueLength > 0) {
+        queuePollTimer = setTimeout(() => void pollQueueStatus(), 3000);
       }
     }
     prevQueueLength = queueLength;
