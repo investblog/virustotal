@@ -228,11 +228,28 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
       actions.appendChild(manualLink);
     }
 
-    // Dispute button (only for malicious/suspicious with vendor data)
+    // Dispute button + progress (only for malicious/suspicious with vendor data)
     if (record.vt_vendors && record.vt_vendors.length > 0 && (record.status === 'malicious' || record.status === 'suspicious')) {
+      const disputes = record.disputes ?? {};
+      const total = record.vt_vendors.filter(v => v.category === 'malicious' || v.category === 'suspicious').length;
+      const disputed = Object.values(disputes).filter(s => s === 'disputed').length;
+      const resolved = Object.values(disputes).filter(s => s === 'resolved').length;
+
       const disputeBtn = document.createElement('button');
       disputeBtn.className = 'btn btn--sm btn--ghost';
-      disputeBtn.textContent = 'Dispute';
+
+      if (resolved === total && total > 0) {
+        disputeBtn.innerHTML = '<svg width="12" height="12"><use href="#ico-check-circle"/></svg>';
+        disputeBtn.style.color = 'var(--status-clean)';
+        disputeBtn.title = `All ${total} vendors resolved`;
+      } else if (disputed + resolved > 0) {
+        disputeBtn.textContent = `${disputed + resolved}/${total}`;
+        disputeBtn.style.color = 'var(--status-suspicious)';
+        disputeBtn.title = `${disputed} disputed, ${resolved} resolved of ${total}`;
+      } else {
+        disputeBtn.textContent = 'Dispute';
+      }
+
       disputeBtn.addEventListener('click', () => {
         openDisputeDrawer(record.domain, record.vt_vendors!, record.disputes);
       });
