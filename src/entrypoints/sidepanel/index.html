@@ -41,6 +41,9 @@
         <button class="btn-icon" type="button" id="btnPause" title="Pause checking (1h)">
           <svg width="16" height="16" viewBox="0 0 24 24"><path id="pauseIcon" fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z"/></svg>
         </button>
+        <button class="btn-icon" type="button" id="btnOpenSettings" title="Settings">
+          <svg width="16" height="16"><use href="#ico-cog"/></svg>
+        </button>
         <button class="btn-icon" type="button" data-action="toggle-theme" data-i18n-title="themeBtn" title="Toggle theme">
           <svg width="16" height="16"><use id="themeIcon" href="#ico-moon"/></svg>
         </button>
@@ -48,24 +51,20 @@
     </header>
 
     <nav class="panel__nav" id="navTabs">
-      <button class="nav-tab is-active" data-tab="watchlist">
-        <svg class="nav-tab__icon"><use href="#ico-shield"/></svg>
-        <span data-i18n="tabWatchlist">Watchlist</span>
-      </button>
       <button class="nav-tab" data-tab="current">
         <svg class="nav-tab__icon"><use href="#ico-globe"/></svg>
         <span data-i18n="tabCurrent">Current Site</span>
       </button>
-      <button class="nav-tab" data-tab="settings">
-        <svg class="nav-tab__icon"><use href="#ico-cog"/></svg>
-        <span data-i18n="tabSettings">Settings</span>
+      <button class="nav-tab" data-tab="watchlist">
+        <svg class="nav-tab__icon"><use href="#ico-shield"/></svg>
+        <span data-i18n="tabWatchlist">Watchlist</span>
       </button>
     </nav>
 
     <main class="panel__body">
 
       <!-- Watchlist -->
-      <section class="view" data-view-content="watchlist">
+      <section class="view" data-view-content="watchlist" hidden>
         <!-- Add mode (default) -->
         <div class="domain-form" id="addMode">
           <div class="domain-form__row">
@@ -87,59 +86,11 @@
       </section>
 
       <!-- Current Site -->
-      <section class="view" data-view-content="current" hidden>
+      <section class="view" data-view-content="current">
         <div id="currentSiteInfo"></div>
       </section>
 
-      <!-- Settings -->
-      <section class="view" data-view-content="settings" hidden>
-        <fieldset class="vt-fieldset">
-          <legend>API</legend>
-          <div class="field">
-            <label class="field__label" for="settingsApiKey" data-i18n="apiKeyLabel">VirusTotal API Key</label>
-            <div class="domain-form__row">
-              <input type="password" id="settingsApiKey" class="input" autocomplete="off" />
-              <button id="btnVerifyKey" class="btn btn--outline" type="button" data-i18n="verifyKeyBtn">Verify</button>
-            </div>
-          </div>
-          <div class="inline-msg" id="settingsKeyStatus"></div>
-          <div class="api-usage" id="apiUsageDisplay" data-i18n="apiUsageLabel">API usage today</div>
-        </fieldset>
-
-        <fieldset class="vt-fieldset">
-          <legend>Schedule</legend>
-          <div class="field">
-            <label class="field__label" for="settingsInterval" data-i18n="checkIntervalLabel">Check interval</label>
-            <select id="settingsInterval" class="input">
-              <option value="12" data-i18n="interval12h">12 hours</option>
-              <option value="24" selected data-i18n="interval24h">24 hours</option>
-              <option value="72" data-i18n="interval3d">3 days</option>
-              <option value="168" data-i18n="interval7d">7 days</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field__label" for="settingsRescan">Rescan policy</label>
-            <select id="settingsRescan" class="input">
-              <option value="never">Never rescan</option>
-              <option value="stale30" selected>Auto-rescan if stale (30d)</option>
-              <option value="stale7">Auto-rescan if stale (7d)</option>
-              <option value="always">Always rescan</option>
-            </select>
-          </div>
-          <button id="btnCheckAll" class="btn btn--outline" type="button" data-i18n="checkAllBtn">Check all now</button>
-        </fieldset>
-
-        <fieldset class="vt-fieldset">
-          <legend>Excluded Domains</legend>
-          <textarea id="settingsExcluded" class="bulk-textarea" rows="3" placeholder="google.com, youtube.com, ..."></textarea>
-          <button id="btnResetExcluded" class="btn btn--ghost btn--sm" type="button">Reset to defaults</button>
-        </fieldset>
-
-        <fieldset class="vt-fieldset">
-          <legend>Help</legend>
-          <button id="btnSetupGuide" class="btn btn--ghost" type="button" data-i18n="setupGuideBtn">Setup guide</button>
-        </fieldset>
-      </section>
+      <!-- Settings moved to drawer, opened by gear icon in header -->
 
     </main>
 

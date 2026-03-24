@@ -3,19 +3,17 @@ import { applyI18n, _ } from '@shared/i18n';
 import { initTheme, toggleTheme, getThemePreference } from '@shared/theme';
 import { sendMessage } from '@shared/messaging';
 import {
-  getDomains, getApiKey, saveApiKey, getApiUsage,
-  getCheckInterval, saveCheckInterval, isPaused,
-  getRescanPolicy, saveRescanPolicy,
-  getExcludedDomains, saveExcludedDomains,
+  getDomains, getApiKey, getApiUsage, isPaused,
 } from '@shared/db';
-import { STORAGE_KEYS as SK_PAUSE, DEFAULT_EXCLUDED_DOMAINS } from '@shared/constants';
+import { STORAGE_KEYS as SK_PAUSE } from '@shared/constants';
 import { showToast } from '@shared/ui-helpers';
 import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
-import type { DomainRecord, DomainStatus, CheckInterval, RescanPolicy } from '@shared/types';
+import type { DomainRecord, DomainStatus } from '@shared/types';
 import { openBulkAddDrawer } from './components/bulk-add-drawer';
 import { openDisputeDrawer } from './components/dispute-drawer';
+import { openSettingsDrawer } from './components/settings-drawer';
 
 const $ = (s: string) => document.querySelector(s);
 
@@ -54,7 +52,7 @@ function shouldRefreshForWindow(windowId?: number): boolean {
 }
 
 // --- Tab navigation ---
-type ViewName = 'watchlist' | 'current' | 'settings';
+type ViewName = 'watchlist' | 'current';
 
 function showView(name: ViewName): void {
   document.querySelectorAll('[data-view-content]').forEach(el => {
@@ -555,84 +553,7 @@ async function renderCurrentSite(): Promise<void> {
 
 // --- Settings ---
 
-async function initSettings(): Promise<void> {
-  // API Key
-  const keyInput = document.getElementById('settingsApiKey') as HTMLInputElement;
-  const keyStatus = document.getElementById('settingsKeyStatus')!;
-  const key = await getApiKey();
-  if (key) keyInput.value = key;
-
-  document.getElementById('btnVerifyKey')!.addEventListener('click', () => {
-    const val = keyInput.value.trim();
-    if (!val) return;
-    keyStatus.textContent = '...';
-    keyStatus.className = 'inline-msg is-visible';
-
-    void sendMessage({ type: 'VERIFY_KEY', key: val }).then(result => {
-      if (result.ok) {
-        keyStatus.textContent = '\u2713 ' + _('keyValid', 'Key valid');
-        keyStatus.className = 'inline-msg is-visible inline-msg--success';
-      } else {
-        keyStatus.textContent = '\u2717 ' + _('keyInvalid', 'Invalid key');
-        keyStatus.className = 'inline-msg is-visible inline-msg--error';
-      }
-    }).catch(() => {
-      keyStatus.textContent = 'Error';
-      keyStatus.className = 'inline-msg is-visible inline-msg--error';
-    });
-  });
-
-  // Interval
-  const intervalSelect = document.getElementById('settingsInterval') as HTMLSelectElement;
-  const interval = await getCheckInterval();
-  intervalSelect.value = String(interval);
-  intervalSelect.addEventListener('change', () => {
-    void saveCheckInterval(Number(intervalSelect.value) as CheckInterval);
-  });
-
-  // Rescan policy
-  const rescanSelect = document.getElementById('settingsRescan') as HTMLSelectElement;
-  const rescanPolicy = await getRescanPolicy();
-  rescanSelect.value = rescanPolicy;
-  rescanSelect.addEventListener('change', () => {
-    void saveRescanPolicy(rescanSelect.value as RescanPolicy);
-  });
-
-  // API usage
-  await updateUsageDisplay();
-
-  // Check all
-  document.getElementById('btnCheckAll')!.addEventListener('click', () => {
-    void sendMessage({ type: 'CHECK_ALL' });
-  });
-
-  // Excluded domains
-  const excludedTextarea = document.getElementById('settingsExcluded') as HTMLTextAreaElement;
-  const excludedList = await getExcludedDomains();
-  excludedTextarea.value = excludedList.join(', ');
-
-  let excludeDebounce: ReturnType<typeof setTimeout> | null = null;
-  excludedTextarea.addEventListener('input', () => {
-    if (excludeDebounce) clearTimeout(excludeDebounce);
-    excludeDebounce = setTimeout(() => {
-      const domains = excludedTextarea.value
-        .split(/[,\n\s]+/)
-        .map(d => d.trim().toLowerCase())
-        .filter(d => d && d.includes('.'));
-      void saveExcludedDomains(domains);
-    }, 500);
-  });
-
-  document.getElementById('btnResetExcluded')?.addEventListener('click', () => {
-    void saveExcludedDomains([...DEFAULT_EXCLUDED_DOMAINS]);
-    excludedTextarea.value = DEFAULT_EXCLUDED_DOMAINS.join(', ');
-  });
-
-  // Setup guide
-  document.getElementById('btnSetupGuide')!.addEventListener('click', () => {
-    void browser.tabs.create({ url: browser.runtime.getURL('/welcome.html') });
-  });
-}
+// Settings moved to drawer — see components/settings-drawer.ts
 
 async function updateUsageDisplay(): Promise<void> {
   const el = document.getElementById('apiUsageDisplay');
@@ -812,7 +733,11 @@ void (async function boot(): Promise<void> {
   void pollQueueStatus();
   updateTokensBadge();
   await renderCurrentSite();
-  await initSettings();
+  // Settings drawer button
+  document.getElementById('btnOpenSettings')?.addEventListener('click', openSettingsDrawer);
+
+  // Default view: Current Site
+  showView('current');
 
   // Theme toggle
   function updateThemeIcon(): void {
