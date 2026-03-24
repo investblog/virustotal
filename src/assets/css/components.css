@@ -94,6 +94,8 @@ body {
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 .btn-icon:hover { background: var(--primary-soft); color: var(--text); }
+.btn-icon.is-active { background: color-mix(in srgb, var(--status-suspicious) 15%, transparent); color: var(--status-suspicious); }
+.btn-icon.is-active:hover { background: color-mix(in srgb, var(--status-suspicious) 25%, transparent); }
 
 .btn:focus-visible, .btn-icon:focus-visible {
   outline: none;

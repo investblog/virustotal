@@ -4,8 +4,9 @@ import { initTheme, toggleTheme, getThemePreference } from '@shared/theme';
 import { sendMessage } from '@shared/messaging';
 import {
   getDomains, getApiKey, saveApiKey, getApiUsage,
-  getCheckInterval, saveCheckInterval,
+  getCheckInterval, saveCheckInterval, isPaused,
 } from '@shared/db';
+import { STORAGE_KEYS as SK_PAUSE } from '@shared/constants';
 import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
 import { STORAGE_KEYS } from '@shared/constants';
@@ -538,6 +539,38 @@ void (async function boot(): Promise<void> {
   $('[data-action="toggle-theme"]')?.addEventListener('click', () => {
     toggleTheme();
     updateThemeIcon();
+  });
+
+  // Pause button
+  const pauseBtn = document.getElementById('btnPause') as HTMLButtonElement | null;
+  const pauseIconEl = document.getElementById('pauseIcon') as SVGPathElement | null;
+  const PAUSE_PATH = 'M14,19H18V5H14M6,19H10V5H6V19Z';
+  const PLAY_PATH = 'M8,5.14V19.14L19,12.14L8,5.14Z';
+
+  async function updatePauseBtn(): Promise<void> {
+    if (!pauseBtn || !pauseIconEl) return;
+    const paused = await isPaused();
+    pauseBtn.classList.toggle('is-active', paused);
+    pauseIconEl.setAttribute('d', paused ? PLAY_PATH : PAUSE_PATH);
+    pauseBtn.title = paused ? 'Resume checking' : 'Pause checking (1h)';
+  }
+
+  void updatePauseBtn();
+  pauseBtn?.addEventListener('click', async () => {
+    const paused = await isPaused();
+    if (paused) {
+      await sendMessage({ type: 'UNPAUSE' });
+    } else {
+      await sendMessage({ type: 'PAUSE' });
+    }
+    await updatePauseBtn();
+  });
+
+  // Listen for pause changes from other contexts
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes[SK_PAUSE.PAUSE_UNTIL]) {
+      void updatePauseBtn();
+    }
   });
 
   // Add domain form

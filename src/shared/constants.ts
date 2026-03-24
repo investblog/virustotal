@@ -36,7 +36,10 @@ export const STORAGE_KEYS = {
   VT_API_KEY: 'vt_api_key',
   CHECK_INTERVAL: 'check_interval_hours',
   THEME: 'theme',
+  PAUSE_UNTIL: 'pause_until',
 } as const;
+
+export const PAUSE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 export const RETRY = {
   MAX_ATTEMPTS: 3,

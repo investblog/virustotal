@@ -2,12 +2,13 @@ import { defineBackground } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
 import type { QueueItem, DomainRecord } from '@shared/types';
 import type { RequestMessage } from '@shared/messaging/protocol';
-import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET } from '@shared/constants';
+import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET, PAUSE_DURATION_MS } from '@shared/constants';
 import { extractDomain } from '@shared/domain-utils';
 import {
   getDomains, getDomain, saveDomain, removeDomain,
   getWatchlistDomains, getApiKey, saveApiKey,
   getCheckInterval, getApiUsage, incrementApiUsage, resetApiUsageIfNewDay,
+  getPauseUntil, setPauseUntil, isPaused,
 } from '@shared/db';
 import { checkDomain } from '@shared/vt-client';
 import { enqueue, dequeue, isQueued, canEnqueue, isInCooldown } from '@shared/queue';
@@ -23,6 +24,50 @@ export default defineBackground(() => {
   let processing: string | null = null;
   let queueTimer: ReturnType<typeof setTimeout> | null = null;
   const retryCount = new Map<string, number>();
+  let pauseResumeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // --- Pause ---
+
+  function applyPauseBadge(): void {
+    try {
+      void actionApi.setBadgeText({ text: '\u23f8' });
+      void actionApi.setBadgeBackgroundColor({ color: '#6b7280' });
+    } catch { /* ignore */ }
+  }
+
+  async function doPause(): Promise<void> {
+    const until = Date.now() + PAUSE_DURATION_MS;
+    await setPauseUntil(until);
+    if (queueTimer) { clearTimeout(queueTimer); queueTimer = null; }
+    applyPauseBadge();
+    scheduleAutoResume(until);
+  }
+
+  async function doUnpause(): Promise<void> {
+    await setPauseUntil(null);
+    if (pauseResumeTimer) { clearTimeout(pauseResumeTimer); pauseResumeTimer = null; }
+    try { void actionApi.setBadgeText({ text: '' }); } catch { /* ignore */ }
+    scheduleProcessQueue();
+  }
+
+  function scheduleAutoResume(until: number): void {
+    if (pauseResumeTimer) clearTimeout(pauseResumeTimer);
+    const delay = Math.max(0, until - Date.now());
+    pauseResumeTimer = setTimeout(() => {
+      pauseResumeTimer = null;
+      void doUnpause();
+    }, delay);
+  }
+
+  async function initPause(): Promise<void> {
+    const until = await getPauseUntil();
+    if (until && until > Date.now()) {
+      applyPauseBadge();
+      scheduleAutoResume(until);
+    } else if (until) {
+      await setPauseUntil(null);
+    }
+  }
 
   // --- Badge ---
 
@@ -54,8 +99,8 @@ export default defineBackground(() => {
     const badge = computeBadge(record || null, queued);
     applyBadge(tabId, badge);
 
-    // Ad-hoc: enqueue if unknown and budget allows
-    if (!record && !queued) {
+    // Ad-hoc: enqueue if unknown, not paused, and budget allows
+    if (!record && !queued && !(await isPaused())) {
       const usage = await resetApiUsageIfNewDay();
       if (canEnqueue('low', usage) && !isInCooldown(record)) {
         if (enqueue(queue, domain, 'low')) {
@@ -77,7 +122,9 @@ export default defineBackground(() => {
 
   function scheduleProcessQueue(): void {
     if (queueTimer || processing) return;
-    void processQueue();
+    void isPaused().then(paused => {
+      if (!paused) void processQueue();
+    });
   }
 
   async function processQueue(): Promise<void> {
@@ -246,6 +293,9 @@ export default defineBackground(() => {
 
   // --- onInstalled ---
 
+  // Init pause state on startup
+  void initPause();
+
   browser.runtime.onInstalled.addListener(({ reason }) => {
     if (reason === 'install') {
       try {
@@ -362,6 +412,22 @@ export default defineBackground(() => {
             }
           }
           break;
+        }
+
+        case 'PAUSE': {
+          void (async () => {
+            await doPause();
+            sendResponse({ ok: true });
+          })();
+          return true;
+        }
+
+        case 'UNPAUSE': {
+          void (async () => {
+            await doUnpause();
+            sendResponse({ ok: true });
+          })();
+          return true;
         }
       }
     }) as (...args: any[]) => void,

@@ -144,3 +144,24 @@ export async function saveThemePreference(pref: ThemePreference): Promise<void> 
     chrome.storage.sync.set({ [STORAGE_KEYS.THEME]: pref }, resolve);
   });
 }
+
+// --- Pause (storage.sync) ---
+
+export async function getPauseUntil(): Promise<number | null> {
+  return new Promise(resolve => {
+    chrome.storage.sync.get({ [STORAGE_KEYS.PAUSE_UNTIL]: null }, data => {
+      resolve(data[STORAGE_KEYS.PAUSE_UNTIL] as number | null);
+    });
+  });
+}
+
+export async function setPauseUntil(ts: number | null): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.PAUSE_UNTIL]: ts }, resolve);
+  });
+}
+
+export async function isPaused(): Promise<boolean> {
+  const until = await getPauseUntil();
+  return until !== null && until > Date.now();
+}

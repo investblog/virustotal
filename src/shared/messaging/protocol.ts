@@ -30,6 +30,14 @@ export interface OpenSidepanelRequest {
   type: 'OPEN_SIDEPANEL';
 }
 
+export interface PauseRequest {
+  type: 'PAUSE';
+}
+
+export interface UnpauseRequest {
+  type: 'UNPAUSE';
+}
+
 export type RequestMessage =
   | CheckDomainRequest
   | AddDomainRequest
@@ -37,7 +45,9 @@ export type RequestMessage =
   | CheckAllRequest
   | VerifyKeyRequest
   | GetQueueStatusRequest
-  | OpenSidepanelRequest;
+  | OpenSidepanelRequest
+  | PauseRequest
+  | UnpauseRequest;
 
 export interface DomainActionResponse {
   ok: boolean;
@@ -61,6 +71,8 @@ export type ResponseMap = {
   VERIFY_KEY: VerifyKeyResponse;
   GET_QUEUE_STATUS: QueueStatusResponse;
   OPEN_SIDEPANEL: void;
+  PAUSE: DomainActionResponse;
+  UNPAUSE: DomainActionResponse;
 };
 
 export function sendMessage<T extends RequestMessage>(

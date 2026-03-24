@@ -26,6 +26,10 @@
 - [x] Loading-спиннер при проверке домена
 - [x] Relative time auto-refresh без перезагрузки
 - [x] VT Report icon-link в Current Site
+- [x] IDN: Unicode display + punycode tooltip + IDN badge icon (301-ui)
+- [x] Pause mode: header button ⏸/▶, 1h auto-resume, badge ⏸ (debloat pattern)
+- [x] UX overhaul: inspector card, verdict-first, compact chrome (CookiePeek density)
+- [x] Render abort guard (P1: duplicate content fix)
 - [ ] ~~Keyboard shortcut~~ — отменён (конфликты с браузерами)
 - [ ] Edge smoke test и store-ready проверка
 
