@@ -199,7 +199,10 @@ function renderWatchlist(domains: Record<string, DomainRecord>): void {
 
 // --- Current Site ---
 
+let renderToken = 0;
+
 async function renderCurrentSite(): Promise<void> {
+  const token = ++renderToken;
   const nav = document.getElementById('navTabs');
   nav?.classList.add('is-loading');
 
@@ -209,9 +212,11 @@ async function renderCurrentSite(): Promise<void> {
   try {
   // Check for API key first
   const apiKey = await getApiKey();
+  if (token !== renderToken) return;
 
   let domain: string | null = null;
   const tab = await getContextTab();
+  if (token !== renderToken) return;
   const tabUrl = tab?.url ?? tab?.pendingUrl;
   if (tabUrl) domain = extractDomain(tabUrl);
 
@@ -224,34 +229,36 @@ async function renderCurrentSite(): Promise<void> {
   }
 
   const domains = await getDomains();
+  if (token !== renderToken) return;
   const record = domains[domain];
 
-  // Domain name
-  const header = document.createElement('div');
-  header.className = 'current-site__domain';
-  if (record) {
-    const dot = document.createElement('span');
-    dot.className = `status-dot ${statusDotClass(record)}`;
-    header.appendChild(dot);
-  }
-  const domainText = document.createElement('span');
   const domainUnicode = toUnicode(domain);
-  domainText.textContent = domainUnicode;
-  header.appendChild(domainText);
+
+  // Inspector card surface
+  const card = document.createElement('div');
+  card.className = 'inspect-card';
+
+  // Row 1: domain + verdict chip + freshness
+  const summary = document.createElement('div');
+  summary.className = 'inspect-card__summary';
+
+  const domainEl = document.createElement('span');
+  domainEl.className = 'inspect-card__domain';
+  domainEl.textContent = domainUnicode;
   if (domainUnicode !== domain) {
     const idnBadge = document.createElement('span');
     idnBadge.className = 'idn-badge';
     idnBadge.innerHTML = '<svg width="18" height="11"><use href="#ico-idn"/></svg>';
     idnBadge.title = domain;
-    header.appendChild(idnBadge);
+    domainEl.appendChild(idnBadge);
   }
-  container.appendChild(header);
+  summary.appendChild(domainEl);
 
   // No API key → setup CTA
   if (!apiKey) {
     const cta = document.createElement('div');
-    cta.className = 'empty-state';
-    cta.innerHTML = `<p style="margin-bottom: var(--space-3)">Set up your API key to check domains</p>`;
+    cta.className = 'inspect-card__body';
+    cta.innerHTML = '<p style="color: var(--text-muted); margin-bottom: var(--space-2)">Set up your API key to check domains</p>';
     const setupBtn = document.createElement('button');
     setupBtn.className = 'btn btn--primary btn--sm';
     setupBtn.textContent = 'Open Setup';
@@ -259,69 +266,72 @@ async function renderCurrentSite(): Promise<void> {
       void browser.tabs.create({ url: browser.runtime.getURL('/welcome.html') });
     });
     cta.appendChild(setupBtn);
-    container.appendChild(cta);
+    card.append(summary, cta);
+    container.appendChild(card);
     return;
   }
 
-  if (!record || !record.vt_stats) {
-    const msg = document.createElement('div');
-    msg.className = 'empty-state';
-    msg.textContent = _('notChecked', 'Not checked yet');
-    container.appendChild(msg);
-  } else {
-    // Status
-    const statusEl = document.createElement('div');
-    statusEl.className = 'current-site__status';
-    statusEl.textContent = statusLabel(isStale(record) ? 'unknown' : record.status);
-    container.appendChild(statusEl);
+  // Verdict chip
+  if (record && record.vt_stats) {
+    const effectiveStatus = isStale(record) ? 'unknown' : record.status;
+    const chip = document.createElement('span');
+    chip.className = `verdict-chip verdict-chip--${effectiveStatus}`;
+    chip.textContent = statusLabel(effectiveStatus);
+    summary.appendChild(chip);
 
-    // Detail list (301-ui pattern)
-    const details = document.createElement('div');
-    details.className = 'detail-list';
-
-    const detailRows: { label: string; value: string; cls?: string }[] = [
-      { label: _('statMalicious', 'Malicious'), value: String(record.vt_stats.malicious), cls: record.vt_stats.malicious > 0 ? 'color: var(--status-malicious)' : '' },
-      { label: _('statSuspicious', 'Suspicious'), value: String(record.vt_stats.suspicious), cls: record.vt_stats.suspicious > 0 ? 'color: var(--status-suspicious)' : '' },
-      { label: _('statHarmless', 'Harmless'), value: String(record.vt_stats.harmless), cls: 'color: var(--status-clean)' },
-      { label: _('statUndetected', 'Undetected'), value: String(record.vt_stats.undetected) },
-    ];
-
+    // Freshness chip
     if (record.last_checked) {
-      detailRows.push({ label: 'Checked', value: timeAgo(record.last_checked) });
-    }
-    if (record.vt_last_analysis_date) {
-      detailRows.push({ label: 'VT scanned', value: new Date(record.vt_last_analysis_date).toLocaleDateString() });
-    }
-
-    for (const row of detailRows) {
-      const r = document.createElement('div');
-      r.className = 'detail-row';
-      const label = document.createElement('span');
-      label.className = 'detail-row__label';
-      label.textContent = row.label;
-      const value = document.createElement('span');
-      value.className = 'detail-row__value';
-      value.textContent = row.value;
-      if (row.cls) value.style.cssText = row.cls;
-      if (row.label === 'Checked') {
-        value.dataset.timestamp = String(record.last_checked);
-      }
-      r.append(label, value);
-      details.appendChild(r);
-    }
-    container.appendChild(details);
-
-    if (isStale(record)) {
-      const warn = document.createElement('div');
-      warn.className = 'stale-warning';
-      warn.textContent = _('staleWarning', 'VT data is over 30 days old');
-      container.appendChild(warn);
+      const fresh = document.createElement('span');
+      fresh.className = 'freshness-chip';
+      fresh.dataset.timestamp = String(record.last_checked);
+      fresh.textContent = timeAgo(record.last_checked);
+      if (isStale(record)) fresh.classList.add('freshness-chip--stale');
+      summary.appendChild(fresh);
     }
   }
 
-  // Actions
-  const actionsDiv = document.createElement('div');
-  actionsDiv.style.cssText = 'display: flex; gap: var(--space-2); margin-top: var(--space-3);';
+  card.appendChild(summary);
+
+  if (!record || !record.vt_stats) {
+    const msg = document.createElement('div');
+    msg.className = 'inspect-card__body';
+    msg.style.cssText = 'color: var(--text-muted);';
+    msg.textContent = _('notChecked', 'Not checked yet');
+    card.appendChild(msg);
+  } else {
+    // Row 2: compact stats
+    const stats = document.createElement('div');
+    stats.className = 'inspect-card__stats';
+    const items = [
+      { label: 'Mal', value: record.vt_stats.malicious, cls: record.vt_stats.malicious > 0 ? 'stat--bad' : '' },
+      { label: 'Sus', value: record.vt_stats.suspicious, cls: record.vt_stats.suspicious > 0 ? 'stat--warn' : '' },
+      { label: 'OK', value: record.vt_stats.harmless, cls: 'stat--ok' },
+      { label: 'N/A', value: record.vt_stats.undetected, cls: '' },
+    ];
+    for (const s of items) {
+      const el = document.createElement('span');
+      el.className = `inspect-card__stat ${s.cls}`;
+      el.innerHTML = `<strong>${s.value}</strong> ${s.label}`;
+      stats.appendChild(el);
+    }
+    card.appendChild(stats);
+
+    // VT scan date + stale warning
+    if (record.vt_last_analysis_date) {
+      const meta = document.createElement('div');
+      meta.className = 'inspect-card__meta';
+      meta.textContent = `VT scan: ${new Date(record.vt_last_analysis_date).toLocaleDateString()}`;
+      if (isStale(record)) {
+        meta.textContent += ` \u2022 ${_('staleWarning', 'data is over 30 days old')}`;
+        meta.classList.add('inspect-card__meta--stale');
+      }
+      card.appendChild(meta);
+    }
+  }
+
+  // Row 3: actions toolbar
+  const toolbar = document.createElement('div');
+  toolbar.className = 'inspect-card__toolbar';
 
   const checkBtn = document.createElement('button');
   checkBtn.className = 'btn btn--primary btn--sm';
@@ -330,7 +340,7 @@ async function renderCurrentSite(): Promise<void> {
     checkBtn.classList.add('btn--loading');
     void sendMessage({ type: 'CHECK_DOMAIN', domain: domain! });
   });
-  actionsDiv.appendChild(checkBtn);
+  toolbar.appendChild(checkBtn);
 
   if (!record?.watchlist) {
     const addBtn = document.createElement('button');
@@ -339,31 +349,30 @@ async function renderCurrentSite(): Promise<void> {
     addBtn.addEventListener('click', () => {
       void sendMessage({ type: 'ADD_DOMAIN', domain: domain! });
     });
-    actionsDiv.appendChild(addBtn);
+    toolbar.appendChild(addBtn);
   }
 
-  // VT report link
   const vtLink = document.createElement('a');
   vtLink.className = 'btn btn--ghost btn--sm';
   vtLink.href = `https://www.virustotal.com/gui/domain/${domain}`;
   vtLink.target = '_blank';
   vtLink.rel = 'noreferrer';
-  vtLink.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-vt"/></svg> VT Report';
-  actionsDiv.appendChild(vtLink);
+  vtLink.innerHTML = '<svg width="14" height="14" style="vertical-align:-2px"><use href="#ico-vt"/></svg> VT';
+  toolbar.appendChild(vtLink);
 
-  // Dispute button (only if flagged vendors exist)
   if (record?.vt_vendors && record.vt_vendors.length > 0 && (record.status === 'malicious' || record.status === 'suspicious')) {
     const disputeBtn = document.createElement('button');
     disputeBtn.className = 'btn btn--sm btn--outline';
     disputeBtn.style.cssText = 'border-color: var(--status-suspicious); color: var(--status-suspicious);';
-    disputeBtn.textContent = 'Dispute \u2192';
+    disputeBtn.textContent = 'Dispute';
     disputeBtn.addEventListener('click', () => {
       openDisputeDrawer(domain!, record.vt_vendors!, record.disputes);
     });
-    actionsDiv.appendChild(disputeBtn);
+    toolbar.appendChild(disputeBtn);
   }
 
-  container.appendChild(actionsDiv);
+  card.appendChild(toolbar);
+  container.appendChild(card);
   } finally {
     nav?.classList.remove('is-loading');
   }
