@@ -31,7 +31,7 @@ export default defineBackground(() => {
 
   function applyPauseBadge(): void {
     try {
-      void actionApi.setBadgeText({ text: ' ' });
+      void actionApi.setBadgeText({ text: 'II' });
       void actionApi.setBadgeBackgroundColor({ color: '#f59e0b' });
     } catch { /* ignore */ }
   }

@@ -235,6 +235,44 @@ Notes:
 - Update `AGENTS.md` and `CLAUDE.md` after structural or behavioral changes that affect day-to-day coding decisions
 - Do not leave agent docs describing a pre-implementation repo after code structure changes
 
+## Signal Contract
+
+User-facing signals are layered by priority. Higher layer always wins.
+
+### Layer 1: Extension Icon Badge
+
+| Priority | State | Text | Color | Clears |
+|----------|-------|------|-------|--------|
+| 1 | Paused | `II` | `#f59e0b` | Unpause / auto-resume |
+| 2 | Queue active | count | `#3b82f6` | queue empty + !processing |
+| 3 | Per-tab status | status symbol | status color | Tab switch |
+
+Queue badge is global (no tabId). Per-tab is per-tab. No phantom items from timers.
+
+### Layer 2: Footer Badges
+
+| Badge | Color | Source | Hidden |
+|-------|-------|--------|--------|
+| Domains | primary | storage DOMAINS | never |
+| Queue | pending | GET_QUEUE_STATUS | when 0 |
+| Tokens | suspicious | storage API_USAGE | never |
+
+### Layer 3: Footer Progress Bar
+
+`is-loading` on `#panelFooter` when queue active or Current Site rendering.
+
+### Layer 4: Toasts (in-panel, 4s auto-dismiss)
+
+success/warning/error/info. Used for: bulk add, queue complete, reanalyze.
+
+### Layer 5: OS Notifications
+
+Only for `userInitiatedBatch` (CHECK_ALL, BULK_ADD+checkNow). Never for scheduled ticks or ad-hoc.
+
+### Layer 6: Button States
+
+`btn--loading` on click, cleared by storage re-render or promise resolve. `disabled` + "Queued" for pending domains.
+
 ## Do Not Do
 
 - Do not present the extension as antivirus software
