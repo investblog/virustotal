@@ -736,8 +736,14 @@ void (async function boot(): Promise<void> {
   // Settings drawer button
   document.getElementById('btnOpenSettings')?.addEventListener('click', openSettingsDrawer);
 
-  // Default view: Current Site
-  showView('current');
+  // Default view: Current Site, but if unsupported page → show Watchlist
+  const ctxTab = await getContextTab();
+  const ctxDomain = ctxTab?.url ? extractDomain(ctxTab.url) : null;
+  if (ctxDomain) {
+    showView('current');
+  } else {
+    showView('watchlist');
+  }
 
   // Theme toggle
   function updateThemeIcon(): void {
