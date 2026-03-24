@@ -114,7 +114,8 @@ function updateFooterCount(domains: Record<string, DomainRecord>): void {
   const el = document.getElementById('footerCount');
   if (!el) return;
   const count = Object.values(domains).filter(d => d.watchlist).length;
-  el.textContent = `${count} domain${count !== 1 ? 's' : ''}`;
+  el.textContent = String(count);
+  el.title = `${count} domain${count !== 1 ? 's' : ''} in watchlist`;
 }
 
 function renderWatchlist(domains: Record<string, DomainRecord>): void {
