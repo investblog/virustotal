@@ -74,6 +74,12 @@ export interface VerifyKeyResponse {
 export interface QueueStatusResponse {
   length: number;
   processing: string | null;
+  completedBatch?: {
+    id: number;
+    processed: number;
+    malicious: number;
+    suspicious: number;
+  } | null;
 }
 
 export type ResponseMap = {

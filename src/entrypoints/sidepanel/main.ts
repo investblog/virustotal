@@ -5,7 +5,6 @@ import { sendMessage } from '@shared/messaging';
 import {
   getDomains, getApiKey, getApiUsage, isPaused,
 } from '@shared/db';
-import { STORAGE_KEYS as SK_PAUSE } from '@shared/constants';
 import { showToast } from '@shared/ui-helpers';
 import { normalizeDomainInput, extractDomain, toUnicode } from '@shared/domain-utils';
 import { isStale } from '@shared/badge';
@@ -77,6 +76,8 @@ let searchQuery = '';
 
 // --- Helpers ---
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 function timeAgo(ts: number): string {
   if (!ts) return 'never';
   const diff = Date.now() - ts;
@@ -127,10 +128,50 @@ function currentSiteHeadline(record: DomainRecord | undefined): string {
   }
 
   if (record.status === 'clean') {
-    return 'No malicious or suspicious detections';
+    return _('noDetections', 'No malicious or suspicious detections');
   }
 
   return statusLabel(record.status);
+}
+
+function createIcon(symbolId: string, width: number, height: number): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
+  const use = document.createElementNS(SVG_NS, 'use');
+  use.setAttribute('href', `#${symbolId}`);
+  svg.appendChild(use);
+  return svg;
+}
+
+function createWhoisChip(
+  symbolId: string,
+  text: string,
+  title: string,
+  extraClass = '',
+): HTMLSpanElement {
+  const chip = document.createElement('span');
+  chip.className = `whois-chip${extraClass}`;
+  chip.title = title;
+  chip.append(createIcon(symbolId, 12, 12), document.createTextNode(` ${text}`));
+  return chip;
+}
+
+function formatBatchSummary(summary: {
+  processed: number;
+  malicious: number;
+  suspicious: number;
+}): { message: string; tone: 'success' | 'warning' } {
+  if (summary.malicious > 0 || summary.suspicious > 0) {
+    return {
+      message: `Check complete: ${summary.malicious} malicious, ${summary.suspicious} suspicious`,
+      tone: 'warning',
+    };
+  }
+  return {
+    message: `Check complete: ${summary.processed} domain${summary.processed > 1 ? 's' : ''} checked - all clean`,
+    tone: 'success',
+  };
 }
 
 // --- Watchlist rendering ---
@@ -358,6 +399,7 @@ async function renderCurrentSite(): Promise<void> {
     const fresh = document.createElement('span');
     fresh.className = 'freshness-chip';
     fresh.dataset.timestamp = String(record.last_checked);
+    fresh.dataset.relativePrefix = 'Checked ';
     fresh.textContent = `Checked ${timeAgo(record.last_checked)}`;
     if (isStale(record)) fresh.classList.add('freshness-chip--stale');
     eyebrow.appendChild(fresh);
@@ -403,14 +445,16 @@ async function renderCurrentSite(): Promise<void> {
 
     const cta = document.createElement('div');
     cta.className = 'inspect-card__body';
-    cta.innerHTML = '<p class="inspect-card__hint">Set up your API key to check domains</p>';
+    const hint = document.createElement('p');
+    hint.className = 'inspect-card__hint';
+    hint.textContent = 'Set up your API key to check domains';
     const setupBtn = document.createElement('button');
     setupBtn.className = 'btn btn--primary btn--sm';
     setupBtn.textContent = 'Open Setup';
     setupBtn.addEventListener('click', () => {
       void browser.tabs.create({ url: browser.runtime.getURL('/welcome.html') });
     });
-    cta.appendChild(setupBtn);
+    cta.append(hint, setupBtn);
     card.append(summary, cta);
     container.appendChild(card);
     return;
@@ -426,7 +470,10 @@ async function renderCurrentSite(): Promise<void> {
   if (!record || !record.vt_stats) {
     const msg = document.createElement('div');
     msg.className = 'inspect-card__body';
-    msg.innerHTML = `<span class="inspect-card__hint">${_('notChecked', 'Not checked yet')}. Run a check to fetch the latest VirusTotal verdict for this domain.</span>`;
+    const hint = document.createElement('span');
+    hint.className = 'inspect-card__hint';
+    hint.textContent = `${_('notChecked', 'Not checked yet')}. Run a check to fetch the latest VirusTotal verdict for this domain.`;
+    msg.appendChild(hint);
     card.appendChild(msg);
   } else {
     // Row 2: compact stats
@@ -441,7 +488,13 @@ async function renderCurrentSite(): Promise<void> {
     for (const s of items) {
       const el = document.createElement('div');
       el.className = `inspect-card__stat ${s.cls}`;
-      el.innerHTML = `<span class="inspect-card__stat-label">${s.label}</span><strong class="inspect-card__stat-value">${s.value}</strong>`;
+      const label = document.createElement('span');
+      label.className = 'inspect-card__stat-label';
+      label.textContent = s.label;
+      const value = document.createElement('strong');
+      value.className = 'inspect-card__stat-value';
+      value.textContent = String(s.value);
+      el.append(label, value);
       stats.appendChild(el);
     }
     card.appendChild(stats);
@@ -466,30 +519,31 @@ async function renderCurrentSite(): Promise<void> {
 
     const w = record.whois;
     if (w.registrar) {
-      const chip = document.createElement('span');
-      chip.className = 'whois-chip';
-      chip.title = `Registrar: ${w.registrar}`;
-      chip.innerHTML = `<svg width="12" height="12"><use href="#ico-dns"/></svg> ${w.registrar.split(',')[0].substring(0, 20)}`;
-      whoisRow.appendChild(chip);
+      whoisRow.appendChild(createWhoisChip(
+        'ico-dns',
+        w.registrar.split(',')[0].substring(0, 20),
+        `Registrar: ${w.registrar}`,
+      ));
     }
     if (w.creation_date) {
       const date = new Date(w.creation_date);
       const isValid = !isNaN(date.getTime());
-      const chip = document.createElement('span');
-      chip.className = 'whois-chip';
-      chip.title = `Created: ${w.creation_date}`;
-      chip.innerHTML = `<svg width="12" height="12"><use href="#ico-calendar-clock"/></svg> ${isValid ? date.getFullYear() : w.creation_date.substring(0, 10)}`;
-      whoisRow.appendChild(chip);
+      whoisRow.appendChild(createWhoisChip(
+        'ico-calendar-clock',
+        isValid ? String(date.getFullYear()) : w.creation_date.substring(0, 10),
+        `Created: ${w.creation_date}`,
+      ));
     }
     if (w.expiration_date) {
       const date = new Date(w.expiration_date);
       const isValid = !isNaN(date.getTime());
       const isExpired = isValid && date.getTime() < Date.now();
-      const chip = document.createElement('span');
-      chip.className = `whois-chip${isExpired ? ' whois-chip--expired' : ''}`;
-      chip.title = `Expires: ${w.expiration_date}${isExpired ? ' (EXPIRED)' : ''}`;
-      chip.innerHTML = `<svg width="12" height="12"><use href="#ico-clock"/></svg> ${isValid ? date.toLocaleDateString() : w.expiration_date.substring(0, 10)}`;
-      whoisRow.appendChild(chip);
+      whoisRow.appendChild(createWhoisChip(
+        'ico-clock',
+        isValid ? date.toLocaleDateString() : w.expiration_date.substring(0, 10),
+        `Expires: ${w.expiration_date}${isExpired ? ' (EXPIRED)' : ''}`,
+        isExpired ? ' whois-chip--expired' : '',
+      ));
     }
     if (w.name_servers.length > 0) {
       const chip = document.createElement('span');
@@ -599,9 +653,9 @@ function initPopupMode(): void {
 
 // --- Queue activity indicator (from background, not storage) ---
 
-let prevQueueLength = 0;
-let zeroCount = 0;
 let queuePollTimer: ReturnType<typeof setTimeout> | null = null;
+let queueSnapshotInitialized = false;
+let lastSeenCompletedBatchId = 0;
 
 async function pollQueueStatus(): Promise<void> {
   const footerEl = document.getElementById('panelFooter');
@@ -612,41 +666,31 @@ async function pollQueueStatus(): Promise<void> {
   try {
     const status = await sendMessage({ type: 'GET_QUEUE_STATUS' });
     const queueLength = status.length + (status.processing ? 1 : 0);
+    const completedBatch = status.completedBatch ?? null;
+
+    if (!queueSnapshotInitialized) {
+      lastSeenCompletedBatchId = completedBatch?.id ?? 0;
+      queueSnapshotInitialized = true;
+    } else if (completedBatch && completedBatch.id > lastSeenCompletedBatchId) {
+      const summary = formatBatchSummary(completedBatch);
+      showToast(summary.message, summary.tone);
+      lastSeenCompletedBatchId = completedBatch.id;
+    }
 
     if (queueLength > 0) {
-      zeroCount = 0;
       footerEl?.classList.add('is-loading');
       if (queueBadge) {
         queueBadge.textContent = String(queueLength);
         queueBadge.title = `${queueLength} in queue`;
         queueBadge.hidden = false;
       }
-      // Keep polling
       queuePollTimer = setTimeout(() => void pollQueueStatus(), 2000);
     } else {
-      zeroCount += 1;
       footerEl?.classList.remove('is-loading');
       if (queueBadge) queueBadge.hidden = true;
 
       // Queue just finished — toast once
-      if (prevQueueLength > 0 && zeroCount === 1) {
-        const domains = await getDomains();
-        const all = Object.values(domains).filter(d => d.watchlist);
-        const mal = all.filter(d => d.status === 'malicious').length;
-        const sus = all.filter(d => d.status === 'suspicious').length;
-        if (mal > 0 || sus > 0) {
-          showToast(`Check complete: ${mal} malicious, ${sus} suspicious`, 'warning');
-        } else {
-          showToast(`Check complete: all clean`, 'success');
-        }
-      }
-
-      // Keep polling for 2 more cycles to catch stragglers, then stop
-      if (zeroCount < 3 && prevQueueLength > 0) {
-        queuePollTimer = setTimeout(() => void pollQueueStatus(), 3000);
-      }
     }
-    prevQueueLength = queueLength;
   } catch { /* background not ready */ }
 }
 
@@ -787,7 +831,7 @@ void (async function boot(): Promise<void> {
 
   // Listen for pause changes from other contexts
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes[SK_PAUSE.PAUSE_UNTIL]) {
+    if (area === 'sync' && changes[STORAGE_KEYS.PAUSE_UNTIL]) {
       void updatePauseBtn();
     }
   });
@@ -867,7 +911,7 @@ void (async function boot(): Promise<void> {
     document.querySelectorAll<HTMLElement>('[data-timestamp]').forEach(el => {
       const ts = Number(el.dataset.timestamp);
       if (ts) {
-        const prefix = el.textContent?.startsWith('Checked:') ? 'Checked: ' : '';
+        const prefix = el.dataset.relativePrefix || '';
         el.textContent = prefix + timeAgo(ts);
       }
     });

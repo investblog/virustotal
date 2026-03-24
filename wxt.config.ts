@@ -16,7 +16,7 @@ export default defineConfig({
 
   manifest: ({ browser }) => ({
     name: 'VirusTotal Domain Monitor',
-    description: 'Monitor domain reputation via VirusTotal API — watchlist with scheduled checks and badge indicator',
+    description: 'Monitor domain reputation via VirusTotal API - watchlist with scheduled checks and badge indicator',
     default_locale: 'en',
     homepage_url: 'https://301.st',
     author: 'VirusTotal Domain Monitor <support@301.st>',
@@ -63,7 +63,7 @@ export default defineConfig({
 
   hooks: {
     'build:manifestGenerated': (wxt, manifest) => {
-      // Chrome/Edge: remove popup — icon click opens sidePanel via onClicked
+      // Chrome/Edge: remove popup, icon click opens sidePanel via onClicked
       if (wxt.config.browser !== 'firefox') {
         if (manifest.action) {
           delete manifest.action.default_popup;

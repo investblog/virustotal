@@ -1,11 +1,11 @@
 import { defineBackground } from 'wxt/sandbox';
 import { browser } from 'wxt/browser';
-import type { QueueItem, DomainRecord } from '@shared/types';
+import type { QueueItem, DomainRecord, DomainStatus } from '@shared/types';
 import type { RequestMessage } from '@shared/messaging/protocol';
 import { ALARM_NAME, THROTTLE_MS, RETRY, BUDGET, PAUSE_DURATION_MS, STALE_THRESHOLD_MS } from '@shared/constants';
 import { extractDomain } from '@shared/domain-utils';
 import {
-  getDomains, getDomain, saveDomain, removeDomain, saveBulkDomains,
+  getDomain, saveDomain, removeDomain, saveBulkDomains,
   getWatchlistDomains, getApiKey, saveApiKey, getExcludedDomains,
   getCheckInterval, getApiUsage, incrementApiUsage, resetApiUsageIfNewDay,
   getPauseUntil, setPauseUntil, isPaused,
@@ -20,14 +20,26 @@ export default defineBackground(() => {
   const actionApi: typeof browser.action =
     (browser as any).action || (browser as any).browserAction;
 
-  // --- In-memory queue state ---
   const queue: QueueItem[] = [];
   let processing: string | null = null;
   let queueTimer: ReturnType<typeof setTimeout> | null = null;
   const retryCount = new Map<string, number>();
   let pauseResumeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // --- Pause ---
+  interface CompletedBatchSummary {
+    id: number;
+    processed: number;
+    malicious: number;
+    suspicious: number;
+  }
+
+  interface ManualBatchState extends CompletedBatchSummary {
+    pending: Set<string>;
+  }
+
+  let nextBatchId = 1;
+  let activeManualBatch: ManualBatchState | null = null;
+  let lastCompletedBatch: CompletedBatchSummary | null = null;
 
   function applyPauseBadge(): void {
     try {
@@ -39,17 +51,24 @@ export default defineBackground(() => {
   async function doPause(): Promise<void> {
     const until = Date.now() + PAUSE_DURATION_MS;
     await setPauseUntil(until);
-    if (queueTimer) { clearTimeout(queueTimer); queueTimer = null; }
+    if (queueTimer) {
+      clearTimeout(queueTimer);
+      queueTimer = null;
+    }
     applyPauseBadge();
     scheduleAutoResume(until);
   }
 
   async function doUnpause(): Promise<void> {
     await setPauseUntil(null);
-    if (pauseResumeTimer) { clearTimeout(pauseResumeTimer); pauseResumeTimer = null; }
-    try { void actionApi.setBadgeText({ text: '' }); } catch { /* ignore */ }
+    if (pauseResumeTimer) {
+      clearTimeout(pauseResumeTimer);
+      pauseResumeTimer = null;
+    }
+    try {
+      void actionApi.setBadgeText({ text: '' });
+    } catch { /* ignore */ }
     scheduleProcessQueue();
-    // Restore per-tab badge for active tab
     void refreshActiveBadge();
   }
 
@@ -72,8 +91,6 @@ export default defineBackground(() => {
     }
   }
 
-  // --- Badge ---
-
   function applyBadge(tabId: number, badge: { text: string; color: string }): void {
     try {
       if (badge.text) {
@@ -85,58 +102,89 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
   }
 
-  // Track processed domains for batch notification
-  let batchProcessed = 0;
-  let batchMalicious = 0;
-  let batchSuspicious = 0;
-  let userInitiatedBatch = false;
-
-  function trackCheckResult(status: string): void {
-    batchProcessed += 1;
-    if (status === 'malicious') batchMalicious += 1;
-    if (status === 'suspicious') batchSuspicious += 1;
+  function beginManualBatch(domains: string[]): void {
+    const uniqueDomains = [...new Set(domains)];
+    if (!uniqueDomains.length) return;
+    if (!activeManualBatch) {
+      activeManualBatch = {
+        id: nextBatchId++,
+        pending: new Set<string>(),
+        processed: 0,
+        malicious: 0,
+        suspicious: 0,
+      };
+    }
+    for (const domain of uniqueDomains) {
+      activeManualBatch.pending.add(domain);
+    }
   }
 
-  async function notifyQueueComplete(): Promise<void> {
-    if (batchProcessed === 0 || !userInitiatedBatch) {
-      batchProcessed = 0;
-      batchMalicious = 0;
-      batchSuspicious = 0;
-      userInitiatedBatch = false;
-      return;
-    }
-    const count = batchProcessed;
-    const mal = batchMalicious;
-    const sus = batchSuspicious;
-    batchProcessed = 0;
-    batchMalicious = 0;
-    batchSuspicious = 0;
-    userInitiatedBatch = false;
+  function clearManualBatch(): void {
+    activeManualBatch = null;
+  }
 
-    let message: string;
-    if (mal > 0 || sus > 0) {
-      message = `${count} checked: ${mal} malicious, ${sus} suspicious`;
-    } else {
-      message = `${count} domain${count > 1 ? 's' : ''} checked — all clean`;
+  function formatBatchMessage(summary: CompletedBatchSummary): string {
+    if (summary.malicious > 0 || summary.suspicious > 0) {
+      return `${summary.processed} checked: ${summary.malicious} malicious, ${summary.suspicious} suspicious`;
     }
+    return `${summary.processed} domain${summary.processed > 1 ? 's' : ''} checked - all clean`;
+  }
 
+  async function notifyBatchComplete(summary: CompletedBatchSummary): Promise<void> {
     try {
-      chrome.notifications.create(`vt-batch-${Date.now()}`, {
+      chrome.notifications.create(`vt-batch-${summary.id}`, {
         type: 'basic',
         iconUrl: browser.runtime.getURL('/icons/icon-128.png'),
         title: 'VT Domain Monitor',
-        message,
+        message: formatBatchMessage(summary),
       }, () => {
-        if (chrome.runtime.lastError) { /* notifications suppressed */ }
+        const err = chrome.runtime.lastError;
+        if (err) {
+          console.warn('VT notifications are unavailable:', err.message);
+        }
       });
-    } catch { /* notifications API not available */ }
+    } catch {
+      /* notifications API not available */
+    }
   }
 
-  /** Show queue size on badge globally (no tabId = all tabs) */
+  function finishManualBatch(): void {
+    if (!activeManualBatch || activeManualBatch.pending.size > 0) return;
+    const summary: CompletedBatchSummary = {
+      id: activeManualBatch.id,
+      processed: activeManualBatch.processed,
+      malicious: activeManualBatch.malicious,
+      suspicious: activeManualBatch.suspicious,
+    };
+    activeManualBatch = null;
+    if (summary.processed === 0) return;
+    lastCompletedBatch = summary;
+    void notifyBatchComplete(summary);
+  }
+
+  function trackManualBatchResult(domain: string, status: DomainStatus): void {
+    if (!activeManualBatch?.pending.has(domain)) return;
+    activeManualBatch.pending.delete(domain);
+    activeManualBatch.processed += 1;
+    if (status === 'malicious') activeManualBatch.malicious += 1;
+    if (status === 'suspicious') activeManualBatch.suspicious += 1;
+    finishManualBatch();
+  }
+
+  function dropManualBatchDomain(domain: string): void {
+    if (!activeManualBatch?.pending.has(domain)) return;
+    activeManualBatch.pending.delete(domain);
+    finishManualBatch();
+  }
+
+  function shouldCountApiRequest(
+    result: Awaited<ReturnType<typeof checkDomain>> | Awaited<ReturnType<typeof rescanDomain>>,
+  ): boolean {
+    return result.ok || result.error.kind === 'rate_limited' || result.error.kind === 'not_found';
+  }
+
   let lastBadgeCount = 0;
   function updateQueueBadge(): void {
-    // Synchronous check — no async isPaused() gate here.
-    // Pause badge is applied separately by applyPauseBadge().
     const queueSize = queue.length + (processing ? 1 : 0);
     try {
       if (queueSize > 0) {
@@ -157,21 +205,21 @@ export default defineBackground(() => {
   }
 
   async function updateBadgeForTab(tabId: number): Promise<void> {
-    // Don't override global queue badge with per-tab status
     if (queue.length > 0 || processing) return;
 
     let url: string | undefined;
     try {
       const tab = await browser.tabs.get(tabId);
       url = tab.url;
-    } catch { return; }
+    } catch {
+      return;
+    }
 
     if (!url) { applyBadge(tabId, BADGE_EMPTY); return; }
 
     const domain = extractDomain(url);
     if (!domain) { applyBadge(tabId, BADGE_EMPTY); return; }
 
-    // Excluded domains: no badge, no ad-hoc check
     const excluded = await getExcludedDomains();
     if (excluded.includes(domain)) { applyBadge(tabId, BADGE_EMPTY); return; }
 
@@ -180,13 +228,13 @@ export default defineBackground(() => {
     const badge = computeBadge(record || null, queued);
     applyBadge(tabId, badge);
 
-    // Ad-hoc: enqueue if unknown, has API key, not paused, and budget allows
     const hasKey = !!(await getApiKey());
     if (!record && !queued && hasKey && !(await isPaused())) {
       const usage = await resetApiUsageIfNewDay();
       if (canEnqueue('low', usage) && !isInCooldown(record)) {
         if (enqueue(queue, domain, 'low')) {
           applyBadge(tabId, { text: '\u2026', color: '#3b82f6' });
+          updateQueueBadge();
           scheduleProcessQueue();
         }
       }
@@ -200,11 +248,22 @@ export default defineBackground(() => {
     } catch { /* ignore */ }
   }
 
-  // --- Queue processing ---
+  async function abortQueue(): Promise<void> {
+    queue.length = 0;
+    processing = null;
+    retryCount.clear();
+    if (queueTimer) {
+      clearTimeout(queueTimer);
+      queueTimer = null;
+    }
+    clearManualBatch();
+    updateQueueBadge();
+    await refreshActiveBadge();
+  }
 
   function scheduleProcessQueue(): void {
     if (queueTimer || processing) return;
-    void isPaused().then(paused => {
+    void isPaused().then((paused) => {
       if (!paused) void processQueue();
     });
   }
@@ -216,7 +275,6 @@ export default defineBackground(() => {
     if (!item) {
       queueTimer = null;
       updateQueueBadge();
-      void notifyQueueComplete();
       return;
     }
 
@@ -224,147 +282,142 @@ export default defineBackground(() => {
     updateQueueBadge();
 
     try {
+      const apiKey = await getApiKey();
+      if (!apiKey) {
+        await abortQueue();
+        return;
+      }
 
-    const apiKey = await getApiKey();
-    if (!apiKey) {
-      processing = null;
-      return;
-    }
+      const policy = await getRescanPolicy();
+      const existingForPolicy = await getDomain(item.domain);
+      let needsRescan = false;
+      if (policy === 'always') {
+        needsRescan = true;
+      } else if (policy !== 'never' && existingForPolicy?.vt_last_analysis_date) {
+        const threshold = policy === 'stale7' ? 7 * 24 * 60 * 60 * 1000 : STALE_THRESHOLD_MS;
+        needsRescan = (Date.now() - existingForPolicy.vt_last_analysis_date) > threshold;
+      }
 
-    // Smart Check: decide GET vs POST+GET based on rescan policy
-    const policy = await getRescanPolicy();
-    const existingForPolicy = await getDomain(item.domain);
-    let needsRescan = false;
-    if (policy === 'always') {
-      needsRescan = true;
-    } else if (policy !== 'never' && existingForPolicy?.vt_last_analysis_date) {
-      const threshold = policy === 'stale7' ? 7 * 24 * 60 * 60 * 1000 : STALE_THRESHOLD_MS;
-      needsRescan = (Date.now() - existingForPolicy.vt_last_analysis_date) > threshold;
-    }
-
-    // If rescan needed, POST analyse first (costs 1 extra request), then GET
-    if (needsRescan) {
-      await rescanDomain(item.domain, apiKey);
-      await incrementApiUsage();
-    }
-    const result = await checkDomain(item.domain, apiKey);
-
-    if (result.ok) {
-      retryCount.delete(item.domain);
-      const existing = await getDomain(item.domain);
-      const status = computeStatus(result.data.stats);
-      const record: DomainRecord = {
-        domain: item.domain,
-        watchlist: existing?.watchlist ?? false,
-        added_at: existing?.added_at ?? Date.now(),
-        last_checked: Date.now(),
-        vt_last_analysis_date: result.data.lastAnalysisDate,
-        vt_stats: result.data.stats,
-        vt_vendors: result.data.vendors.length > 0 ? result.data.vendors : null,
-        status,
-        disputes: existing?.disputes,
-        whois: result.data.whois ?? existing?.whois,
-      };
-      // Clear processing BEFORE storage writes so polls see 0
-      processing = null;
-      updateQueueBadge();
-      await saveDomain(record);
-      await incrementApiUsage();
-      trackCheckResult(status);
-    } else {
-      switch (result.error.kind) {
-        case 'invalid_key':
-          // Stop processing, clear queue
-          queue.length = 0;
-          processing = null;
-          queueTimer = null;
-          return;
-
-        case 'rate_limited': {
+      if (needsRescan) {
+        const rescanResult = await rescanDomain(item.domain, apiKey);
+        if (shouldCountApiRequest(rescanResult)) {
           await incrementApiUsage();
-          const currentUsage = await getApiUsage();
-          if (currentUsage.count >= BUDGET.DAILY_MAX) {
-            // Daily quota exhausted — stop until tomorrow
-            queue.length = 0;
+        }
+      }
+
+      const result = await checkDomain(item.domain, apiKey);
+
+      if (result.ok) {
+        retryCount.delete(item.domain);
+        const existing = await getDomain(item.domain);
+        const status = computeStatus(result.data.stats);
+        const record: DomainRecord = {
+          domain: item.domain,
+          watchlist: existing?.watchlist ?? false,
+          added_at: existing?.added_at ?? Date.now(),
+          last_checked: Date.now(),
+          vt_last_analysis_date: result.data.lastAnalysisDate,
+          vt_stats: result.data.stats,
+          vt_vendors: result.data.vendors.length > 0 ? result.data.vendors : null,
+          status,
+          disputes: existing?.disputes,
+          whois: result.data.whois ?? existing?.whois,
+        };
+        processing = null;
+        updateQueueBadge();
+        await saveDomain(record);
+        await incrementApiUsage();
+        trackManualBatchResult(item.domain, status);
+      } else {
+        switch (result.error.kind) {
+          case 'invalid_key':
+            await abortQueue();
+            return;
+
+          case 'rate_limited': {
+            await incrementApiUsage();
+            const currentUsage = await getApiUsage();
+            if (currentUsage.count >= BUDGET.DAILY_MAX) {
+              await abortQueue();
+              return;
+            }
+            const rlRetries = (retryCount.get(item.domain) ?? 0) + 1;
+            if (rlRetries <= RETRY.MAX_ATTEMPTS) {
+              retryCount.set(item.domain, rlRetries);
+              enqueue(queue, item.domain, item.priority);
+            } else {
+              retryCount.delete(item.domain);
+              dropManualBatchDomain(item.domain);
+            }
             processing = null;
-            queueTimer = null;
+            updateQueueBadge();
+            queueTimer = setTimeout(() => {
+              queueTimer = null;
+              void processQueue();
+            }, RETRY.RATE_LIMIT_DELAY_MS);
             return;
           }
-          // Per-minute rate limit — retry once after cooldown
-          const rlRetries = (retryCount.get(item.domain) ?? 0) + 1;
-          if (rlRetries <= RETRY.MAX_ATTEMPTS) {
-            retryCount.set(item.domain, rlRetries);
-            enqueue(queue, item.domain, item.priority);
-          } else {
-            retryCount.delete(item.domain);
-          }
-          processing = null;
-          queueTimer = setTimeout(() => {
-            queueTimer = null;
-            void processQueue();
-          }, RETRY.RATE_LIMIT_DELAY_MS);
-          return;
-        }
 
-        case 'not_found': {
-          retryCount.delete(item.domain);
-          processing = null;
-          updateQueueBadge();
-          const existing = await getDomain(item.domain);
-          const record: DomainRecord = {
-            domain: item.domain,
-            watchlist: existing?.watchlist ?? false,
-            added_at: existing?.added_at ?? Date.now(),
-            last_checked: Date.now(),
-            vt_last_analysis_date: null,
-            vt_stats: null,
-            vt_vendors: null,
-            status: 'unknown',
-          };
-          await saveDomain(record);
-          await incrementApiUsage();
-          trackCheckResult('unknown');
-          break;
-        }
-
-        case 'network': {
-          const attempts = (retryCount.get(item.domain) ?? 0) + 1;
-          if (attempts < RETRY.MAX_ATTEMPTS) {
-            retryCount.set(item.domain, attempts);
-            enqueue(queue, item.domain, item.priority);
-          } else {
+          case 'not_found': {
             retryCount.delete(item.domain);
+            processing = null;
+            updateQueueBadge();
+            const existing = await getDomain(item.domain);
+            const record: DomainRecord = {
+              domain: item.domain,
+              watchlist: existing?.watchlist ?? false,
+              added_at: existing?.added_at ?? Date.now(),
+              last_checked: Date.now(),
+              vt_last_analysis_date: null,
+              vt_stats: null,
+              vt_vendors: null,
+              status: 'unknown',
+            };
+            await saveDomain(record);
+            await incrementApiUsage();
+            trackManualBatchResult(item.domain, 'unknown');
+            break;
           }
-          processing = null;
-          queueTimer = setTimeout(() => {
-            queueTimer = null;
-            void processQueue();
-          }, RETRY.NETWORK_DELAY_MS);
-          return;
+
+          case 'network': {
+            const attempts = (retryCount.get(item.domain) ?? 0) + 1;
+            if (attempts < RETRY.MAX_ATTEMPTS) {
+              retryCount.set(item.domain, attempts);
+              enqueue(queue, item.domain, item.priority);
+            } else {
+              retryCount.delete(item.domain);
+              dropManualBatchDomain(item.domain);
+            }
+            processing = null;
+            updateQueueBadge();
+            queueTimer = setTimeout(() => {
+              queueTimer = null;
+              void processQueue();
+            }, RETRY.NETWORK_DELAY_MS);
+            return;
+          }
         }
       }
-    }
 
-    // Update badge for active tab if it matches
-    try {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        const domain = tab.url ? extractDomain(tab.url) : null;
-        if (domain === item.domain) {
-          void updateBadgeForTab(tab.id);
+      try {
+        const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+          const domain = tab.url ? extractDomain(tab.url) : null;
+          if (domain === item.domain) {
+            void updateBadgeForTab(tab.id);
+          }
         }
-      }
-    } catch { /* ignore */ }
+      } catch { /* ignore */ }
 
-    processing = null;
-    updateQueueBadge();
-    queueTimer = setTimeout(() => {
-      queueTimer = null;
-      void processQueue();
-    }, THROTTLE_MS);
-
+      processing = null;
+      updateQueueBadge();
+      queueTimer = setTimeout(() => {
+        queueTimer = null;
+        void processQueue();
+      }, THROTTLE_MS);
     } catch (err) {
-      // Ensure queue never gets permanently stuck
+      console.warn(`Queue processing failed for ${item.domain}:`, err);
+      dropManualBatchDomain(item.domain);
       processing = null;
       updateQueueBadge();
       queueTimer = setTimeout(() => {
@@ -374,16 +427,12 @@ export default defineBackground(() => {
     }
   }
 
-  // --- Watchlist tick ---
-
   async function tickWatchlist(): Promise<void> {
     const interval = await getCheckInterval();
     const intervalMs = interval * 60 * 60 * 1000;
     const now = Date.now();
     const domains = await getWatchlistDomains();
     const usage = await resetApiUsageIfNewDay();
-
-    // Virtual counter: account for already-queued work
     const projectedUsage = { ...usage, count: usage.count + queue.length };
 
     for (const record of domains) {
@@ -395,10 +444,9 @@ export default defineBackground(() => {
         }
       }
     }
+    updateQueueBadge();
     scheduleProcessQueue();
   }
-
-  // --- Tab listeners ---
 
   browser.tabs.onActivated.addListener(({ tabId }) => {
     void updateBadgeForTab(tabId);
@@ -410,15 +458,10 @@ export default defineBackground(() => {
     }
   });
 
-  // --- Alarm ---
-
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ALARM_NAME) void tickWatchlist();
   });
 
-  // --- onInstalled ---
-
-  // Init pause state on startup
   void initPause();
 
   browser.runtime.onInstalled.addListener(({ reason }) => {
@@ -429,8 +472,6 @@ export default defineBackground(() => {
     }
     void createWatchlistAlarm();
   });
-
-  // --- Side panel click (Chrome/Edge) ---
 
   if (!import.meta.env.FIREFOX && actionApi?.onClicked) {
     actionApi.onClicked.addListener((tab) => {
@@ -443,29 +484,34 @@ export default defineBackground(() => {
     });
   }
 
-  // --- Message handler ---
+  function respondAsync<T>(sendResponse: (response: T) => void, task: () => Promise<T>): true {
+    void task().then(sendResponse).catch((err) => {
+      console.warn('Background message handler failed:', err);
+      sendResponse({ ok: false, error: 'internal' } as T);
+    });
+    return true;
+  }
 
   browser.runtime.onMessage.addListener(
-    ((msg: RequestMessage, sender: any, sendResponse: (r?: any) => void) => {
+    ((msg: RequestMessage, sender: any, sendResponse: (response?: any) => void) => {
       if (!msg?.type) return;
 
       switch (msg.type) {
         case 'CHECK_DOMAIN': {
-          userInitiatedBatch = true;
-          const domain = msg.domain;
-          enqueue(queue, domain, 'high');
+          beginManualBatch([msg.domain]);
+          enqueue(queue, msg.domain, 'high');
+          updateQueueBadge();
           scheduleProcessQueue();
           void refreshActiveBadge();
           sendResponse({ ok: true });
           break;
         }
 
-        case 'ADD_DOMAIN': {
-          const domain = msg.domain;
-          void (async () => {
-            const existing = await getDomain(domain);
+        case 'ADD_DOMAIN':
+          return respondAsync(sendResponse, async () => {
+            const existing = await getDomain(msg.domain);
             const record: DomainRecord = {
-              domain,
+              domain: msg.domain,
               watchlist: true,
               added_at: existing?.added_at ?? Date.now(),
               last_checked: existing?.last_checked ?? 0,
@@ -476,57 +522,50 @@ export default defineBackground(() => {
               disputes: existing?.disputes,
             };
             await saveDomain(record);
-            enqueue(queue, domain, 'high');
+            beginManualBatch([msg.domain]);
+            enqueue(queue, msg.domain, 'high');
+            updateQueueBadge();
             scheduleProcessQueue();
             await refreshActiveBadge();
-            sendResponse({ ok: true });
-          })();
-          return true;
-        }
+            return { ok: true };
+          });
 
-        case 'REMOVE_DOMAIN': {
-          void (async () => {
+        case 'REMOVE_DOMAIN':
+          return respondAsync(sendResponse, async () => {
             await removeDomain(msg.domain);
             await refreshActiveBadge();
-            sendResponse({ ok: true });
-          })();
-          return true;
-        }
+            return { ok: true };
+          });
 
-        case 'CHECK_ALL': {
-          void (async () => {
-            userInitiatedBatch = true;
+        case 'CHECK_ALL':
+          return respondAsync(sendResponse, async () => {
             const domains = await getWatchlistDomains();
-            for (const d of domains) {
-              enqueue(queue, d.domain, 'high');
+            const batchDomains = domains.map((d) => d.domain);
+            beginManualBatch(batchDomains);
+            for (const domain of batchDomains) {
+              enqueue(queue, domain, 'high');
             }
+            updateQueueBadge();
             scheduleProcessQueue();
-            sendResponse({ ok: true });
-          })();
-          return true;
-        }
+            return { ok: true };
+          });
 
-        case 'RESCAN_DOMAIN': {
-          void (async () => {
+        case 'RESCAN_DOMAIN':
+          return respondAsync(sendResponse, async () => {
             const apiKey = await getApiKey();
-            if (!apiKey) { sendResponse({ ok: false, error: 'no_key' }); return; }
+            if (!apiKey) return { ok: false, error: 'no_key' };
             const result = await rescanDomain(msg.domain, apiKey);
-            await incrementApiUsage();
-            if (result.ok) {
-              // Reanalyze requested at VT — takes ~30s+ to complete.
-              // Do NOT auto-enqueue a check — results would still be stale.
-              // User can manually Check when ready.
-              sendResponse({ ok: true });
-            } else {
-              sendResponse({ ok: false, error: result.error.kind });
+            if (shouldCountApiRequest(result)) {
+              await incrementApiUsage();
             }
-          })();
-          return true;
-        }
+            if (result.ok) {
+              return { ok: true };
+            }
+            return { ok: false, error: result.error.kind };
+          });
 
-        case 'BULK_ADD': {
-          void (async () => {
-            if (msg.checkNow) userInitiatedBatch = true;
+        case 'BULK_ADD':
+          return respondAsync(sendResponse, async () => {
             const now = Date.now();
             await saveBulkDomains(msg.domains, now);
 
@@ -534,39 +573,48 @@ export default defineBackground(() => {
               const usage = await resetApiUsageIfNewDay();
               const maxBatch = 20;
               let queued = 0;
+              const trackedDomains: string[] = [];
+
               for (const domain of msg.domains) {
-                if (queued >= maxBatch) break;
-                const projectedCount = usage.count + queue.length + queued;
-                if (projectedCount >= BUDGET.HARD_CAP) break;
-                if (enqueue(queue, domain, 'high')) queued += 1;
+                if (trackedDomains.length >= maxBatch) break;
+
+                const alreadyInFlight = processing === domain || isQueued(queue, domain);
+                if (!alreadyInFlight) {
+                  const projectedCount = usage.count + queue.length + queued;
+                  if (projectedCount >= BUDGET.HARD_CAP) break;
+                  if (!enqueue(queue, domain, 'high')) continue;
+                  queued += 1;
+                }
+
+                trackedDomains.push(domain);
               }
-              if (queued > 0) {
+
+              if (trackedDomains.length > 0) {
+                beginManualBatch(trackedDomains);
                 updateQueueBadge();
                 scheduleProcessQueue();
               }
             }
-            await refreshActiveBadge();
-            sendResponse({ ok: true });
-          })();
-          return true;
-        }
 
-        case 'VERIFY_KEY': {
-          void (async () => {
+            await refreshActiveBadge();
+            return { ok: true };
+          });
+
+        case 'VERIFY_KEY':
+          return respondAsync(sendResponse, async () => {
             const result = await checkDomain('google.com', msg.key);
-            await incrementApiUsage();
+            if (shouldCountApiRequest(result)) {
+              await incrementApiUsage();
+            }
             if (result.ok) {
               await saveApiKey(msg.key);
-              sendResponse({ ok: true });
-            } else {
-              sendResponse({ ok: false, error: result.error.kind });
+              return { ok: true };
             }
-          })();
-          return true;
-        }
+            return { ok: false, error: result.error.kind };
+          });
 
         case 'GET_QUEUE_STATUS':
-          sendResponse({ length: queue.length, processing });
+          sendResponse({ length: queue.length, processing, completedBatch: lastCompletedBatch });
           break;
 
         case 'OPEN_SIDEPANEL': {
@@ -587,21 +635,17 @@ export default defineBackground(() => {
           break;
         }
 
-        case 'PAUSE': {
-          void (async () => {
+        case 'PAUSE':
+          return respondAsync(sendResponse, async () => {
             await doPause();
-            sendResponse({ ok: true });
-          })();
-          return true;
-        }
+            return { ok: true };
+          });
 
-        case 'UNPAUSE': {
-          void (async () => {
+        case 'UNPAUSE':
+          return respondAsync(sendResponse, async () => {
             await doUnpause();
-            sendResponse({ ok: true });
-          })();
-          return true;
-        }
+            return { ok: true };
+          });
       }
     }) as (...args: any[]) => void,
   );

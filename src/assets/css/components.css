@@ -398,12 +398,27 @@ body {
 
 /* === Domain form === */
 
+.domain-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .domain-form__row {
   display: flex;
   gap: var(--space-1);
   align-items: center;
 }
 .domain-form__row .input { flex: 1; }
+
+.domain-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
 
 .input--sm {
   padding: var(--space-1) var(--space-2);
@@ -711,6 +726,25 @@ select.input {
 .drawer__footer {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border-subtle);
+}
+.drawer__about {
+  font-size: 10px;
+  color: var(--text-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.drawer__about-links {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.drawer__about-link {
+  color: var(--primary);
+  text-decoration: none;
+}
+.drawer__about-link:hover {
+  text-decoration: underline;
 }
 .drawer__tip {
   font-size: var(--fs-xs);
