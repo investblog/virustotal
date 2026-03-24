@@ -71,6 +71,9 @@ function initNavigation(): void {
   });
 }
 
+// --- Search state ---
+let searchQuery = '';
+
 // --- Helpers ---
 
 function timeAgo(ts: number): string {
@@ -103,10 +106,15 @@ function statusDotClass(record: DomainRecord): string {
 
 // --- Watchlist rendering ---
 
+let lastDomains: Record<string, DomainRecord> = {};
+
 function renderWatchlist(domains: Record<string, DomainRecord>): void {
+  lastDomains = domains;
   const container = document.getElementById('watchlistContainer')!;
+  const q = searchQuery.toLowerCase();
   const records = Object.values(domains)
     .filter(d => d.watchlist)
+    .filter(d => !q || d.domain.includes(q) || toUnicode(d.domain).toLowerCase().includes(q))
     .sort((a, b) => b.added_at - a.added_at);
 
   container.replaceChildren();
@@ -630,6 +638,37 @@ void (async function boot(): Promise<void> {
 
   // Bulk add
   document.getElementById('btnBulkAdd')?.addEventListener('click', openBulkAddDrawer);
+
+  // Search toggle
+  const addMode = document.getElementById('addMode')!;
+  const searchMode = document.getElementById('searchMode')!;
+  const searchInput = document.getElementById('searchInput') as HTMLInputElement;
+
+  document.getElementById('btnToggleSearch')?.addEventListener('click', () => {
+    addMode.hidden = true;
+    searchMode.hidden = false;
+    searchInput.value = '';
+    searchInput.focus();
+  });
+
+  document.getElementById('btnCloseSearch')?.addEventListener('click', () => {
+    searchMode.hidden = true;
+    addMode.hidden = false;
+    searchQuery = '';
+    renderWatchlist(lastDomains);
+  });
+
+  searchInput?.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    renderWatchlist(lastDomains);
+  });
+
+  // Escape closes search
+  searchInput?.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Escape') {
+      document.getElementById('btnCloseSearch')?.click();
+    }
+  });
 
   // Relative time auto-refresh (every 60s)
   setInterval(() => {
