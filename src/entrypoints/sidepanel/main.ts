@@ -767,7 +767,7 @@ void (async function boot(): Promise<void> {
     } else if (isEdge) {
       storeLink.href = 'https://microsoftedge.microsoft.com/addons/search?developer=SpinTax';
     } else {
-      storeLink.href = 'https://chromewebstore.google.com/search/301.st';
+      storeLink.href = 'https://chromewebstore.google.com/detail/virustotal-domain-monitor/cfbelafipgejaglbhohmkegljmiliecn';
     }
     storeLink.hidden = false;
   }
