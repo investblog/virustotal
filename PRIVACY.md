@@ -58,4 +58,4 @@ If this privacy policy changes, the updated version will be published in the ext
 
 ## Contact
 
-For questions or concerns about privacy: https://301.st
+For questions or concerns about privacy: https://virustotal.site

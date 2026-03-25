@@ -18,7 +18,7 @@ export default defineConfig({
     name: 'VirusTotal Domain Monitor',
     description: 'Monitor domain reputation via VirusTotal API - watchlist with scheduled checks and badge indicator',
     default_locale: 'en',
-    homepage_url: 'https://301.st',
+    homepage_url: 'https://virustotal.site',
     author: 'VirusTotal Domain Monitor <support@301.st>',
 
     permissions: (browser === 'firefox')
